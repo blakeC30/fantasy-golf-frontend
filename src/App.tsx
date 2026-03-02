@@ -1,15 +1,44 @@
-function App() {
+/**
+ * App — root router.
+ *
+ * Public routes (/login, /register, /join/:slug) are accessible without auth.
+ * All other routes are wrapped in <Layout>, which redirects to /login if there
+ * is no token.
+ */
+
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import { Login } from "./pages/Login";
+import { Register } from "./pages/Register";
+import { Leagues } from "./pages/Leagues";
+import { Dashboard } from "./pages/Dashboard";
+import { MakePick } from "./pages/MakePick";
+import { MyPicks } from "./pages/MyPicks";
+import { Leaderboard } from "./pages/Leaderboard";
+import { Admin } from "./pages/Admin";
+import { JoinLeague } from "./pages/JoinLeague";
+
+export default function App() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-green-800 text-white px-8 py-6 shadow">
-        <h1 className="text-3xl font-bold tracking-tight">Fantasy Golf</h1>
-        <p className="mt-1 text-green-200 text-sm">Phase 0 — project scaffold complete</p>
-      </header>
-      <main className="px-8 py-12">
-        <p className="text-gray-600">Pages and routing will be added in Phase 4.</p>
-      </main>
-    </div>
+    <Routes>
+      {/* Public */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/join/:slug" element={<JoinLeague />} />
+
+      {/* Auth-guarded — all share the Layout shell */}
+      <Route element={<Layout />}>
+        <Route path="/leagues" element={<Leagues />} />
+        <Route path="/leagues/:slug" element={<Dashboard />} />
+        <Route path="/leagues/:slug/pick" element={<MakePick />} />
+        <Route path="/leagues/:slug/picks" element={<MyPicks />} />
+        <Route path="/leagues/:slug/leaderboard" element={<Leaderboard />} />
+        <Route path="/leagues/:slug/admin" element={<Admin />} />
+      </Route>
+
+      {/* Default: send root to /leagues */}
+      <Route path="/" element={<Navigate to="/leagues" replace />} />
+      <Route path="*" element={<Navigate to="/leagues" replace />} />
+    </Routes>
   );
 }
-
-export default App;
