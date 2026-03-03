@@ -1,25 +1,49 @@
 /**
  * JoinLeague — landing page for invite links.
  *
- * First fetches a league preview (name, member count, user's current status)
- * without committing anything, then lets the user confirm or cancel.
+ * The outer component handles the auth gate: unauthenticated users are sent
+ * to /login?next=/join/:inviteCode and returned here after signing in or
+ * creating an account. Once authenticated, JoinLeagueForm renders and handles
+ * the actual preview + confirm flow.
  *
- * States handled:
+ * Splitting into two components keeps React hook call order consistent —
+ * JoinLeagueForm's hooks are never called for unauthenticated visitors.
+ *
+ * States (inside JoinLeagueForm):
  *   - Loading: fetching preview
  *   - Invalid link: 404 from preview fetch
- *   - Already approved: redirect to the league dashboard
+ *   - Already approved: show "already a member" card with link to league
  *   - Pending: show status + option to cancel the request
  *   - No relationship: show confirm/cancel form
  */
 
 import { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import { useJoinByCode, useJoinPreview, useCancelMyRequest } from "../hooks/useLeague";
 
 export function JoinLeague() {
   const { inviteCode } = useParams<{ inviteCode: string }>();
+  const { token, bootstrapping } = useAuth();
+
+  if (bootstrapping) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!token) {
+    return <Navigate to={`/login?next=/join/${inviteCode}`} replace />;
+  }
+
+  return <JoinLeagueForm inviteCode={inviteCode!} />;
+}
+
+function JoinLeagueForm({ inviteCode }: { inviteCode: string }) {
   const navigate = useNavigate();
-  const { data: preview, isLoading, isError } = useJoinPreview(inviteCode ?? "");
+  const { data: preview, isLoading, isError } = useJoinPreview(inviteCode);
   const joinByCode = useJoinByCode();
   const cancelRequest = useCancelMyRequest();
   const [submitted, setSubmitted] = useState(false);
@@ -49,9 +73,27 @@ export function JoinLeague() {
     );
   }
 
-  // Already an approved member — redirect straight to the dashboard.
+  // Already an approved member — show a message instead of silently redirecting.
   if (preview.user_status === "approved") {
-    return <Navigate to={`/leagues/${preview.league_id}`} replace />;
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="max-w-sm w-full bg-white rounded-xl border border-gray-200 p-8 space-y-5 text-center">
+          <p className="text-xs font-semibold uppercase tracking-wider text-green-700">
+            You're already a member
+          </p>
+          <h1 className="text-2xl font-bold text-gray-900">{preview.name}</h1>
+          {preview.description && (
+            <p className="text-sm text-gray-500">{preview.description}</p>
+          )}
+          <button
+            onClick={() => navigate(`/leagues/${preview.league_id}`)}
+            className="w-full bg-green-800 hover:bg-green-700 text-white text-sm font-semibold py-2 rounded-lg"
+          >
+            Go to league →
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const isPending = preview.user_status === "pending" || submitted;
@@ -59,7 +101,7 @@ export function JoinLeague() {
   async function handleConfirm() {
     setJoinError("");
     try {
-      const membership = await joinByCode.mutateAsync(inviteCode!);
+      const membership = await joinByCode.mutateAsync(inviteCode);
       if (membership.status === "approved") {
         navigate(`/leagues/${membership.league_id}`);
       } else {
@@ -71,7 +113,7 @@ export function JoinLeague() {
     }
   }
 
-  async function handleCancel() {
+  async function handleWithdraw() {
     await cancelRequest.mutateAsync(String(preview!.league_id));
     navigate("/leagues");
   }
@@ -82,7 +124,11 @@ export function JoinLeague() {
         {/* League info */}
         <div className="text-center space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-green-700">
-            {isPending ? "Request pending" : "You've been invited to join"}
+            {preview.user_status === "pending"
+              ? "You've already requested to join"
+              : submitted
+              ? "Request pending"
+              : "You've been invited to join"}
           </p>
           <h1 className="text-2xl font-bold text-gray-900">{preview.name}</h1>
           {preview.description && (
@@ -97,8 +143,9 @@ export function JoinLeague() {
           /* Pending state */
           <div className="space-y-3 text-center">
             <p className="text-sm text-gray-600">
-              Your join request is waiting for approval from a league manager. You'll
-              get access once they approve it.
+              {preview.user_status === "pending"
+                ? "You already have an open request for this league. A manager needs to approve it before you get access."
+                : "Your join request has been sent. A manager needs to approve it before you get access."}
             </p>
             <button
               onClick={() => navigate("/leagues")}
@@ -107,11 +154,11 @@ export function JoinLeague() {
               Back to my leagues
             </button>
             <button
-              onClick={handleCancel}
+              onClick={handleWithdraw}
               disabled={cancelRequest.isPending}
               className="w-full text-sm text-red-500 hover:underline disabled:opacity-40"
             >
-              {cancelRequest.isPending ? "Cancelling…" : "Withdraw request"}
+              {cancelRequest.isPending ? "Withdrawing…" : "Withdraw request"}
             </button>
           </div>
         ) : (

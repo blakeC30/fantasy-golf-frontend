@@ -10,6 +10,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
+import { Welcome } from "./pages/Welcome";
 import { Leagues } from "./pages/Leagues";
 import { Dashboard } from "./pages/Dashboard";
 import { MakePick } from "./pages/MakePick";
@@ -23,6 +24,7 @@ export default function App() {
   return (
     <Routes>
       {/* Public */}
+      <Route path="/" element={<Welcome />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/join/:inviteCode" element={<JoinLeague />} />
@@ -38,9 +40,8 @@ export default function App() {
         <Route path="/admin" element={<PlatformAdmin />} />
       </Route>
 
-      {/* Default: send root to /leagues */}
-      <Route path="/" element={<Navigate to="/leagues" replace />} />
-      <Route path="*" element={<Navigate to="/leagues" replace />} />
+      {/* Unknown routes: send to welcome */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -55,6 +55,12 @@ export interface Tournament {
   is_team_event: boolean;
 }
 
+// Returned by GET /leagues/{id}/tournaments — includes the league's effective
+// multiplier, which resolves to the per-league override or the global default.
+export interface LeagueTournamentOut extends Tournament {
+  effective_multiplier: number;
+}
+
 export interface Golfer {
   id: string;
   pga_tour_id: string;
@@ -103,6 +109,26 @@ export interface StandingsResponse {
   league_id: string;
   season_year: number;
   rows: StandingsRow[];
+}
+
+export interface PickerInfo {
+  user_id: string;
+  display_name: string;
+  points_earned: number | null;
+}
+
+export interface GolferPickGroup {
+  golfer_id: string;
+  golfer_name: string;
+  pick_count: number;
+  pickers: PickerInfo[];
+}
+
+export interface TournamentPicksSummary {
+  tournament_status: "scheduled" | "in_progress" | "completed";
+  member_count: number;
+  picks_by_golfer: GolferPickGroup[]; // sorted by pick_count desc
+  no_pick_members: { user_id: string; display_name: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -186,10 +212,10 @@ export const leaguesApi = {
     api.delete(`/leagues/${leagueId}/requests/${userId}`).then((r) => r.data),
 
   getTournaments: (leagueId: string) =>
-    api.get<Tournament[]>(`/leagues/${leagueId}/tournaments`).then((r) => r.data),
+    api.get<LeagueTournamentOut[]>(`/leagues/${leagueId}/tournaments`).then((r) => r.data),
 
-  updateTournaments: (leagueId: string, tournamentIds: string[]) =>
-    api.put<Tournament[]>(`/leagues/${leagueId}/tournaments`, { tournament_ids: tournamentIds }).then((r) => r.data),
+  updateTournaments: (leagueId: string, tournaments: { tournament_id: string; multiplier: number | null }[]) =>
+    api.put<LeagueTournamentOut[]>(`/leagues/${leagueId}/tournaments`, { tournaments }).then((r) => r.data),
 };
 
 // ---------------------------------------------------------------------------
@@ -232,6 +258,11 @@ export const picksApi = {
 
   all: (leagueId: string) =>
     api.get<Pick[]>(`/leagues/${leagueId}/picks`).then((r) => r.data),
+
+  tournamentSummary: (leagueId: string, tournamentId: string) =>
+    api
+      .get<TournamentPicksSummary>(`/leagues/${leagueId}/picks/tournament/${tournamentId}`)
+      .then((r) => r.data),
 };
 
 // ---------------------------------------------------------------------------

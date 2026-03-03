@@ -4,6 +4,15 @@
 
 import type { Tournament } from "../api/endpoints";
 
+function formatPurse(purse: number | null): string | null {
+  if (purse === null) return null;
+  if (purse >= 1_000_000) {
+    const m = purse / 1_000_000;
+    return `$${m % 1 === 0 ? m : m.toFixed(1)}M`;
+  }
+  return `$${Math.round(purse / 1000)}K`;
+}
+
 const STATUS_STYLE: Record<Tournament["status"], string> = {
   scheduled: "bg-blue-100 text-blue-700",
   in_progress: "bg-yellow-100 text-yellow-800",
@@ -17,13 +26,12 @@ const STATUS_LABEL: Record<Tournament["status"], string> = {
 };
 
 interface Props {
-  tournament: Tournament;
+  // Accept both plain Tournament and LeagueTournamentOut (which adds effective_multiplier).
+  tournament: Tournament & { effective_multiplier?: number };
   showDates?: boolean;
 }
 
 export function TournamentBadge({ tournament, showDates = false }: Props) {
-  const isMajor = tournament.multiplier >= 2;
-
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span
@@ -32,9 +40,9 @@ export function TournamentBadge({ tournament, showDates = false }: Props) {
         {STATUS_LABEL[tournament.status]}
       </span>
 
-      {isMajor && (
-        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-          {tournament.multiplier}× MAJOR
+      {formatPurse(tournament.purse_usd) && (
+        <span className="text-xs text-gray-400">
+          {formatPurse(tournament.purse_usd)} purse
         </span>
       )}
 

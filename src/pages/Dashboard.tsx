@@ -7,6 +7,7 @@
 
 import { Link, useParams } from "react-router-dom";
 import { useLeague, useLeagueTournaments } from "../hooks/useLeague";
+import { fmtTournamentName } from "../utils";
 import { useMyPicks, useStandings } from "../hooks/usePick";
 import { StandingsTable } from "../components/StandingsTable";
 import { TournamentBadge } from "../components/TournamentBadge";
@@ -45,7 +46,19 @@ export function Dashboard() {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
                 {active.status === "in_progress" ? "In Progress" : "Up Next"}
               </p>
-              <h2 className="text-lg font-semibold text-gray-900">{active.name}</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-semibold text-gray-900">{fmtTournamentName(active.name)}</h2>
+                {active.effective_multiplier >= 2 && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                    {active.effective_multiplier}× MAJOR
+                  </span>
+                )}
+                {active.effective_multiplier > 1 && active.effective_multiplier < 2 && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                    {active.effective_multiplier}× FEATURED
+                  </span>
+                )}
+              </div>
               <TournamentBadge tournament={active} showDates />
             </div>
 

@@ -46,9 +46,6 @@ export function Layout() {
                 <Link to={`/leagues/${leagueId}`} className="hover:text-green-200">
                   Dashboard
                 </Link>
-                <Link to={`/leagues/${leagueId}/pick`} className="hover:text-green-200">
-                  Make Pick
-                </Link>
                 <Link to={`/leagues/${leagueId}/picks`} className="hover:text-green-200">
                   My Picks
                 </Link>

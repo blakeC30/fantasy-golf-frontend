@@ -40,8 +40,6 @@ export function StandingsTable({ rows, limit }: Props) {
             <th className="px-4 py-2 text-left w-12">Pos</th>
             <th className="px-4 py-2 text-left">Player</th>
             <th className="px-4 py-2 text-right">Points</th>
-            <th className="px-4 py-2 text-right hidden sm:table-cell">Picks</th>
-            <th className="px-4 py-2 text-right hidden sm:table-cell">Missed</th>
           </tr>
         </thead>
         <tbody>
@@ -64,16 +62,12 @@ export function StandingsTable({ rows, limit }: Props) {
                 <td className="px-4 py-2 text-right tabular-nums">
                   {formatPoints(row.total_points)}
                 </td>
-                <td className="px-4 py-2 text-right hidden sm:table-cell">{row.pick_count}</td>
-                <td className="px-4 py-2 text-right hidden sm:table-cell text-red-500">
-                  {row.missed_count > 0 ? row.missed_count : "—"}
-                </td>
               </tr>
             );
           })}
           {displayed.length === 0 && (
             <tr>
-              <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+              <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
                 No standings yet — picks will appear after tournaments complete.
               </td>
             </tr>

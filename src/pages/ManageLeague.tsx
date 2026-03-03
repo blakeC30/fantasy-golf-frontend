@@ -21,6 +21,7 @@ import {
   useUpdateMemberRole,
 } from "../hooks/useLeague";
 import { useTournaments } from "../hooks/usePick";
+import { fmtTournamentName } from "../utils";
 import { useAuthStore } from "../store/authStore";
 
 export function ManageLeague() {
@@ -92,18 +93,28 @@ export function ManageLeague() {
   const updateSchedule = useUpdateLeagueTournaments(leagueId!);
   const [scheduleEditing, setScheduleEditing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Per-tournament multiplier overrides. Key = tournament id, value = multiplier.
+  const [multipliers, setMultipliers] = useState<Record<string, number>>({});
   const [scheduleSaved, setScheduleSaved] = useState(false);
 
-  // Initialize checkboxes from the server's saved schedule exactly once per
-  // mount. Using a ref flag prevents background React Query refetches from
-  // overwriting the user's unsaved checkbox changes.
+  // Initialize checkboxes + multipliers from the server's saved schedule exactly
+  // once per mount. Using a ref flag prevents background React Query refetches
+  // from overwriting the user's unsaved changes.
   const initializedRef = useRef(false);
   useEffect(() => {
     if (leagueTournaments && !initializedRef.current) {
       setSelectedIds(new Set(leagueTournaments.map((t) => t.id)));
+      setMultipliers(
+        Object.fromEntries(leagueTournaments.map((t) => [t.id, t.effective_multiplier]))
+      );
       initializedRef.current = true;
     }
   }, [leagueTournaments]);
+
+  // Fast lookup from tournament id → global tournament (for default multiplier).
+  const allTournamentsById = Object.fromEntries(
+    (allTournaments ?? []).map((t) => [t.id, t])
+  );
 
   function toggleTournament(id: string) {
     setSelectedIds((prev) => {
@@ -115,16 +126,29 @@ export function ManageLeague() {
     setScheduleSaved(false);
   }
 
+  function setMultiplierFor(id: string, value: number) {
+    setMultipliers((prev) => ({ ...prev, [id]: value }));
+    setScheduleSaved(false);
+  }
+
   function handleCancelSchedule() {
     if (leagueTournaments) {
       setSelectedIds(new Set(leagueTournaments.map((t) => t.id)));
+      setMultipliers(
+        Object.fromEntries(leagueTournaments.map((t) => [t.id, t.effective_multiplier]))
+      );
     }
     setScheduleSaved(false);
     setScheduleEditing(false);
   }
 
   async function handleSaveSchedule() {
-    await updateSchedule.mutateAsync([...selectedIds]);
+    await updateSchedule.mutateAsync(
+      [...selectedIds].map((id) => ({
+        tournament_id: id,
+        multiplier: multipliers[id] ?? allTournamentsById[id]?.multiplier ?? 1.0,
+      }))
+    );
     setScheduleSaved(true);
     setScheduleEditing(false);
   }
@@ -412,28 +436,62 @@ export function ManageLeague() {
                         .map((t) => {
                           const checked = selectedIds.has(t.id);
                           const isPast = t.status === "completed";
+                          const effectiveMultiplier = multipliers[t.id] ?? t.multiplier;
                           return (
-                            <label
+                            <div
                               key={t.id}
                               className={`flex items-center gap-3 px-4 py-3 ${
                                 scheduleEditing ? "cursor-pointer hover:bg-gray-50" : "cursor-default"
                               } ${isPast ? "opacity-50" : ""}`}
+                              onClick={() => scheduleEditing && toggleTournament(t.id)}
                             >
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                onChange={() => scheduleEditing && toggleTournament(t.id)}
+                                onChange={() => {}}
                                 disabled={!scheduleEditing}
-                                className="accent-green-800 h-4 w-4 flex-shrink-0 disabled:opacity-60"
+                                className="accent-green-800 h-4 w-4 flex-shrink-0 disabled:opacity-60 pointer-events-none"
                               />
-                              <span className="flex-1 text-sm text-gray-900">{t.name}</span>
-                              <span className="text-xs text-gray-400">{t.start_date}</span>
-                              {t.multiplier >= 2 && (
-                                <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                                  2× MAJOR
+                              <span className="flex-1 text-sm text-gray-900">{fmtTournamentName(t.name)}</span>
+
+                              {/* Multiplier — picker when editing + checked, badge otherwise */}
+                              {checked && scheduleEditing ? (
+                                <div
+                                  className="flex items-center gap-1 flex-shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {[1.0, 1.5, 2.0].map((preset) => (
+                                    <button
+                                      key={preset}
+                                      type="button"
+                                      onClick={() => setMultiplierFor(t.id, preset)}
+                                      className={`text-xs px-2 py-0.5 rounded font-semibold transition-colors ${
+                                        effectiveMultiplier === preset
+                                          ? preset >= 2
+                                            ? "bg-amber-500 text-white"
+                                            : preset === 1.5
+                                            ? "bg-blue-600 text-white"
+                                            : "bg-green-800 text-white"
+                                          : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                      }`}
+                                    >
+                                      {preset === 1.0 ? "1×" : preset === 1.5 ? "1.5×" : "2×"}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : checked && effectiveMultiplier !== 1.0 ? (
+                                <span
+                                  className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                    effectiveMultiplier >= 2
+                                      ? "bg-amber-100 text-amber-700"
+                                      : "bg-blue-50 text-blue-700"
+                                  }`}
+                                >
+                                  {effectiveMultiplier}×
                                 </span>
-                              )}
-                            </label>
+                              ) : null}
+                              <span className="text-xs text-gray-400 flex-shrink-0">{t.start_date}</span>
+                            </div>
                           );
                         })}
                     </div>

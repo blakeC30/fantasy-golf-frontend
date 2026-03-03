@@ -5,6 +5,7 @@
 import { Link, useParams } from "react-router-dom";
 import { useMyPicks } from "../hooks/usePick";
 import { TournamentBadge } from "../components/TournamentBadge";
+import { fmtTournamentName } from "../utils";
 
 function formatPoints(pts: number | null): string {
   if (pts === null) return "—";
@@ -53,7 +54,7 @@ export function MyPicks() {
               className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-4"
             >
               <div className="space-y-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">{pick.tournament.name}</p>
+                <p className="font-medium text-gray-900 truncate">{fmtTournamentName(pick.tournament.name)}</p>
                 <TournamentBadge tournament={pick.tournament} showDates />
               </div>
 

@@ -36,6 +36,15 @@ export function useAllPicks(leagueId: string) {
   });
 }
 
+export function useTournamentPicksSummary(leagueId: string, tournamentId: string | null) {
+  return useQuery({
+    queryKey: ["tournamentPicksSummary", leagueId, tournamentId],
+    queryFn: () => picksApi.tournamentSummary(leagueId, tournamentId!),
+    enabled: !!leagueId && !!tournamentId,
+    retry: false, // don't retry the 403 "scheduled" response
+  });
+}
+
 export function useStandings(leagueId: string) {
   return useQuery({
     queryKey: ["standings", leagueId],

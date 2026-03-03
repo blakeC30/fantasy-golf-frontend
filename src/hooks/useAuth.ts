@@ -7,14 +7,18 @@
  */
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { authApi, usersApi } from "../api/endpoints";
 import { useAuthStore } from "../store/authStore";
 
 export function useAuth() {
   const { token, user, setAuth, clearAuth } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [bootstrapping, setBootstrapping] = useState(!token);
+
+  // Destination after successful login/register. Falls back to /leagues.
+  const next = searchParams.get("next") ?? "/leagues";
 
   // On first mount with no token: try to restore the session from the
   // httpOnly refresh-token cookie. This handles hard refreshes.
@@ -41,7 +45,7 @@ export function useAuth() {
     useAuthStore.getState().setToken(access_token); // must be set before me()
     const me = await usersApi.me();
     setAuth(me, access_token);
-    navigate("/leagues");
+    navigate(next);
   }
 
   async function loginWithGoogle(id_token: string) {
@@ -49,7 +53,7 @@ export function useAuth() {
     useAuthStore.getState().setToken(access_token);
     const me = await usersApi.me();
     setAuth(me, access_token);
-    navigate("/leagues");
+    navigate(next);
   }
 
   async function register(email: string, password: string, display_name: string) {
@@ -57,7 +61,7 @@ export function useAuth() {
     useAuthStore.getState().setToken(access_token);
     const me = await usersApi.me();
     setAuth(me, access_token);
-    navigate("/leagues");
+    navigate(next);
   }
 
   async function logout() {

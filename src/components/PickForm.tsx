@@ -9,9 +9,10 @@ import { useState } from "react";
 import type { Golfer, Pick, Tournament } from "../api/endpoints";
 import { GolferCard } from "./GolferCard";
 import { TournamentBadge } from "./TournamentBadge";
+import { fmtTournamentName } from "../utils";
 
 interface Props {
-  tournament: Tournament;
+  tournament: Tournament & { effective_multiplier?: number };
   field: Golfer[];
   usedGolferIds: Set<string>; // golfer IDs already picked this season
   existingPick?: Pick; // if the user already has a pick for this tournament
@@ -48,7 +49,19 @@ export function PickForm({
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Tournament header */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">{tournament.name}</h2>
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <h2 className="text-lg font-semibold text-gray-900">{fmtTournamentName(tournament.name)}</h2>
+          {(tournament.effective_multiplier ?? 0) >= 2 && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+              {tournament.effective_multiplier}× MAJOR
+            </span>
+          )}
+          {(tournament.effective_multiplier ?? 0) > 1 && (tournament.effective_multiplier ?? 0) < 2 && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              {tournament.effective_multiplier}× FEATURED
+            </span>
+          )}
+        </div>
         <TournamentBadge tournament={tournament} showDates />
       </div>
 

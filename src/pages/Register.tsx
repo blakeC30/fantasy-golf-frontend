@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../hooks/useAuth";
 
 export function Register() {
   const { register, loginWithGoogle } = useAuth();
+  const [searchParams] = useSearchParams();
+  const next = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -28,6 +30,12 @@ export function Register() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
+        <Link to="/" className="flex items-center justify-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 mb-6 transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+          </svg>
+          Back to home
+        </Link>
         <h1 className="text-3xl font-bold text-green-900 text-center mb-1">⛳ Fantasy Golf</h1>
         <p className="text-center text-gray-500 text-sm mb-8">Create your account</p>
 
@@ -87,7 +95,10 @@ export function Register() {
 
         <p className="text-center text-sm text-gray-500 mt-4">
           Already have an account?{" "}
-          <Link to="/login" className="text-green-700 font-medium hover:underline">
+          <Link
+            to={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+            className="text-green-700 font-medium hover:underline"
+          >
             Sign in
           </Link>
         </p>

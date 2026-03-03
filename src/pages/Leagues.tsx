@@ -21,6 +21,16 @@ export function Leagues() {
   const [createName, setCreateName] = useState("");
   const [createError, setCreateError] = useState("");
 
+  const [joinCode, setJoinCode] = useState("");
+
+  function handleJoin(e: React.FormEvent) {
+    e.preventDefault();
+    // Accept a full URL (e.g. https://…/join/abc123) or just the code itself.
+    const raw = joinCode.trim();
+    const code = raw.includes("/join/") ? raw.split("/join/").pop()! : raw;
+    if (code) navigate(`/join/${code}`);
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setCreateError("");
@@ -125,11 +135,22 @@ export function Leagues() {
         {/* Join */}
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <h2 className="font-semibold text-gray-900 mb-3">Join a league</h2>
-          <p className="text-sm text-gray-500">
-            Ask a league manager to share their invite link with you. The link will
-            look like <span className="font-mono text-gray-700">/join/…</span> and
-            will submit a join request directly.
-          </p>
+          <form onSubmit={handleJoin} className="space-y-2">
+            <input
+              type="text"
+              placeholder="Paste invite link or code"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <button
+              type="submit"
+              disabled={!joinCode.trim()}
+              className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg"
+            >
+              Continue
+            </button>
+          </form>
         </div>
       </div>
     </div>

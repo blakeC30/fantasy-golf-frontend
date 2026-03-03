@@ -119,7 +119,8 @@ export function useLeagueTournaments(leagueId: string) {
 export function useUpdateLeagueTournaments(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (tournamentIds: string[]) => leaguesApi.updateTournaments(leagueId, tournamentIds),
+    mutationFn: (tournaments: { tournament_id: string; multiplier: number | null }[]) =>
+      leaguesApi.updateTournaments(leagueId, tournaments),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueTournaments", leagueId] }),
   });
 }
