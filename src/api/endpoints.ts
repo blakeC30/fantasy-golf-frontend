@@ -37,7 +37,7 @@ export interface League {
 export interface LeagueMember {
   user_id: string;
   league_id: string;
-  role: "admin" | "member";
+  role: "manager" | "member";
   status: "pending" | "approved";
   joined_at: string;
   user: User;
@@ -75,11 +75,28 @@ export interface Pick {
 
 export interface StandingsRow {
   rank: number;
+  is_tied: boolean; // true when two or more players share this rank
   user_id: string;
   display_name: string;
   total_points: number;
   pick_count: number;
   missed_count: number;
+}
+
+export interface LeagueJoinPreview {
+  league_id: string;
+  name: string;
+  description: string | null;
+  member_count: number;
+  /** null = no relationship, "pending" = awaiting approval, "approved" = already a member */
+  user_status: "pending" | "approved" | null;
+}
+
+export interface LeagueRequestOut {
+  league_id: string;
+  league_name: string;
+  league_description: string | null;
+  requested_at: string;
 }
 
 export interface StandingsResponse {
@@ -135,13 +152,25 @@ export const leaguesApi = {
   get: (leagueId: string) =>
     api.get<League>(`/leagues/${leagueId}`).then((r) => r.data),
 
+  update: (leagueId: string, data: { name?: string; description?: string | null; no_pick_penalty?: number }) =>
+    api.patch<League>(`/leagues/${leagueId}`, data).then((r) => r.data),
+
+  joinPreview: (inviteCode: string) =>
+    api.get<LeagueJoinPreview>(`/leagues/join/${inviteCode}`).then((r) => r.data),
+
   joinByCode: (inviteCode: string) =>
     api.post<LeagueMember>(`/leagues/join/${inviteCode}`).then((r) => r.data),
+
+  cancelMyRequest: (leagueId: string) =>
+    api.delete(`/leagues/${leagueId}/requests/me`).then((r) => r.data),
+
+  myRequests: () =>
+    api.get<LeagueRequestOut[]>("/leagues/my-requests").then((r) => r.data),
 
   members: (leagueId: string) =>
     api.get<LeagueMember[]>(`/leagues/${leagueId}/members`).then((r) => r.data),
 
-  updateMemberRole: (leagueId: string, userId: string, role: "admin" | "member") =>
+  updateMemberRole: (leagueId: string, userId: string, role: "manager" | "member") =>
     api.patch<LeagueMember>(`/leagues/${leagueId}/members/${userId}/role`, { role }).then((r) => r.data),
 
   removeMember: (leagueId: string, userId: string) =>

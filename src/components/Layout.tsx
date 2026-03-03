@@ -8,10 +8,16 @@
 
 import { Link, Navigate, Outlet, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useLeagueMembers } from "../hooks/useLeague";
 
 export function Layout() {
   const { token, user, bootstrapping, logout } = useAuth();
   const { leagueId } = useParams<{ leagueId?: string }>();
+
+  const { data: leagueMembers } = useLeagueMembers(leagueId ?? "");
+  const isManager = leagueMembers?.some(
+    (m) => m.user_id === user?.id && m.role === "manager"
+  ) ?? false;
 
   if (bootstrapping) {
     return (
@@ -49,12 +55,18 @@ export function Layout() {
                 <Link to={`/leagues/${leagueId}/leaderboard`} className="hover:text-green-200">
                   Leaderboard
                 </Link>
-                {user?.is_platform_admin && (
-                  <Link to={`/leagues/${leagueId}/admin`} className="hover:text-green-200">
-                    Admin
+                {isManager && (
+                  <Link to={`/leagues/${leagueId}/manage`} className="hover:text-green-200">
+                    Manage League
                   </Link>
                 )}
               </>
+            )}
+
+            {user?.is_platform_admin && (
+              <Link to="/admin" className="hover:text-green-200">
+                Admin
+              </Link>
             )}
 
             <span className="text-green-300 hidden sm:inline">

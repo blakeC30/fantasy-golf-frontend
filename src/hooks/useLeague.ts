@@ -20,6 +20,18 @@ export function useLeague(leagueId: string) {
   });
 }
 
+export function useUpdateLeague(leagueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name?: string; description?: string | null; no_pick_penalty?: number }) =>
+      leaguesApi.update(leagueId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["league", leagueId] });
+      qc.invalidateQueries({ queryKey: ["myLeagues"] });
+    },
+  });
+}
+
 export function useLeagueMembers(leagueId: string) {
   return useQuery({
     queryKey: ["leagueMembers", leagueId],
@@ -44,20 +56,45 @@ export function useCreateLeague() {
   });
 }
 
+export function useJoinPreview(inviteCode: string) {
+  return useQuery({
+    queryKey: ["joinPreview", inviteCode],
+    queryFn: () => leaguesApi.joinPreview(inviteCode),
+    enabled: !!inviteCode,
+    retry: false, // Don't retry 404s (invalid invite code)
+  });
+}
+
 export function useJoinByCode() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (inviteCode: string) => leaguesApi.joinByCode(inviteCode),
-    // Only invalidate myLeagues when the join was auto-approved (public league).
-    // For private leagues the request is pending — the user's league list won't change yet.
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["myLeagues"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myLeagues"] });
+      qc.invalidateQueries({ queryKey: ["myRequests"] });
+    },
+  });
+}
+
+export function useCancelMyRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (leagueId: string) => leaguesApi.cancelMyRequest(leagueId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["myRequests"] }),
+  });
+}
+
+export function useMyRequests() {
+  return useQuery({
+    queryKey: ["myRequests"],
+    queryFn: leaguesApi.myRequests,
   });
 }
 
 export function useUpdateMemberRole(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: "admin" | "member" }) =>
+    mutationFn: ({ userId, role }: { userId: string; role: "manager" | "member" }) =>
       leaguesApi.updateMemberRole(leagueId, userId, role),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueMembers", leagueId] }),
   });

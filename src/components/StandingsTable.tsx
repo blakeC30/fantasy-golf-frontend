@@ -11,6 +11,18 @@ function formatPoints(pts: number): string {
   return `$${pts.toLocaleString()}`;
 }
 
+/** Golf-style rank label: "1", "T2", "T2", "4" */
+function formatRank(rank: number, isTied: boolean): string {
+  return isTied ? `T${rank}` : `${rank}`;
+}
+
+function rankClass(rank: number): string {
+  if (rank === 1) return "text-amber-500 font-bold";
+  if (rank === 2) return "text-slate-400 font-semibold";
+  if (rank === 3) return "text-orange-400 font-semibold";
+  return "text-gray-500";
+}
+
 interface Props {
   rows: StandingsRow[];
   limit?: number; // show only top N rows (undefined = all)
@@ -25,7 +37,7 @@ export function StandingsTable({ rows, limit }: Props) {
       <table className="min-w-full text-sm">
         <thead className="bg-green-900 text-white">
           <tr>
-            <th className="px-4 py-2 text-left w-10">#</th>
+            <th className="px-4 py-2 text-left w-12">Pos</th>
             <th className="px-4 py-2 text-left">Player</th>
             <th className="px-4 py-2 text-right">Points</th>
             <th className="px-4 py-2 text-right hidden sm:table-cell">Picks</th>
@@ -42,7 +54,9 @@ export function StandingsTable({ rows, limit }: Props) {
                   isMe ? "bg-green-50 font-semibold" : i % 2 === 0 ? "bg-white" : "bg-gray-50"
                 }`}
               >
-                <td className="px-4 py-2 text-gray-500">{row.rank}</td>
+                <td className={`px-4 py-2 tabular-nums ${rankClass(row.rank)}`}>
+                  {formatRank(row.rank, row.is_tied)}
+                </td>
                 <td className="px-4 py-2">
                   {row.display_name}
                   {isMe && <span className="ml-1 text-green-700 text-xs">(you)</span>}

@@ -15,7 +15,8 @@ import { Dashboard } from "./pages/Dashboard";
 import { MakePick } from "./pages/MakePick";
 import { MyPicks } from "./pages/MyPicks";
 import { Leaderboard } from "./pages/Leaderboard";
-import { Admin } from "./pages/Admin";
+import { ManageLeague } from "./pages/ManageLeague";
+import { PlatformAdmin } from "./pages/PlatformAdmin";
 import { JoinLeague } from "./pages/JoinLeague";
 
 export default function App() {
@@ -33,7 +34,8 @@ export default function App() {
         <Route path="/leagues/:leagueId/pick" element={<MakePick />} />
         <Route path="/leagues/:leagueId/picks" element={<MyPicks />} />
         <Route path="/leagues/:leagueId/leaderboard" element={<Leaderboard />} />
-        <Route path="/leagues/:leagueId/admin" element={<Admin />} />
+        <Route path="/leagues/:leagueId/manage" element={<ManageLeague />} />
+        <Route path="/admin" element={<PlatformAdmin />} />
       </Route>
 
       {/* Default: send root to /leagues */}

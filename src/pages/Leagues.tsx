@@ -2,17 +2,20 @@
  * Leagues — post-login landing page.
  *
  * Shows all leagues the user belongs to, plus an option to create a new one.
- * Joining a league is done via an invite link shared by the league admin.
+ * Joining a league is done via an invite link shared by the league manager.
  */
 
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useMyLeagues, useCreateLeague } from "../hooks/useLeague";
+import { useNavigate } from "react-router-dom";
+import { LeagueCard } from "../components/LeagueCard";
+import { useMyLeagues, useCreateLeague, useMyRequests, useCancelMyRequest } from "../hooks/useLeague";
 
 export function Leagues() {
   const navigate = useNavigate();
   const { data: leagues, isLoading } = useMyLeagues();
+  const { data: pendingRequests } = useMyRequests();
   const createLeague = useCreateLeague();
+  const cancelRequest = useCancelMyRequest();
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -38,20 +41,42 @@ export function Leagues() {
       {isLoading ? (
         <p className="text-gray-400">Loading…</p>
       ) : leagues && leagues.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {leagues.map((l) => (
-            <Link
-              key={l.id}
-              to={`/leagues/${l.id}`}
-              className="bg-white border border-gray-200 rounded-xl p-5 hover:border-green-500 hover:shadow-sm transition-all"
-            >
-              <h2 className="font-semibold text-gray-900">{l.name}</h2>
-              {l.description && <p className="text-sm text-gray-500 mt-1">{l.description}</p>}
-            </Link>
+            <LeagueCard key={l.id} league={l} />
           ))}
         </div>
       ) : (
         <p className="text-gray-500">You haven't joined any leagues yet.</p>
+      )}
+
+      {/* Pending join requests */}
+      {pendingRequests && pendingRequests.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-gray-800">Pending Requests</h2>
+          <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+            {pendingRequests.map((req) => (
+              <div key={String(req.league_id)} className="flex items-center gap-4 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{req.league_name}</p>
+                  {req.league_description && (
+                    <p className="text-xs text-gray-400 truncate">{req.league_description}</p>
+                  )}
+                </div>
+                <span className="flex-shrink-0 text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                  Pending approval
+                </span>
+                <button
+                  onClick={() => cancelRequest.mutate(String(req.league_id))}
+                  disabled={cancelRequest.isPending}
+                  className="flex-shrink-0 text-xs text-red-500 hover:underline disabled:opacity-40"
+                >
+                  Withdraw
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Create / Join */}
@@ -101,7 +126,7 @@ export function Leagues() {
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <h2 className="font-semibold text-gray-900 mb-3">Join a league</h2>
           <p className="text-sm text-gray-500">
-            Ask a league admin to share their invite link with you. The link will
+            Ask a league manager to share their invite link with you. The link will
             look like <span className="font-mono text-gray-700">/join/…</span> and
             will submit a join request directly.
           </p>

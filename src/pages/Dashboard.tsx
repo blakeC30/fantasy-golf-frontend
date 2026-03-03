@@ -78,7 +78,7 @@ export function Dashboard() {
         </div>
       ) : (
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center text-gray-400">
-          No tournaments scheduled for this league yet. An admin can configure the schedule in the Admin panel.
+          No tournaments scheduled for this league yet. The league manager can configure the schedule in Manage League.
         </div>
       )}
 
