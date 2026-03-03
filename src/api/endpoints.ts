@@ -27,9 +27,10 @@ export interface TokenResponse {
 export interface League {
   id: string;
   name: string;
-  slug: string;
   description: string | null;
   no_pick_penalty: number;
+  invite_code: string;
+  is_public: boolean;
   created_at: string;
 }
 
@@ -37,6 +38,7 @@ export interface LeagueMember {
   user_id: string;
   league_id: string;
   role: "admin" | "member";
+  status: "pending" | "approved";
   joined_at: string;
   user: User;
 }
@@ -50,6 +52,7 @@ export interface Tournament {
   multiplier: number;
   purse_usd: number | null;
   status: "scheduled" | "in_progress" | "completed";
+  is_team_event: boolean;
 }
 
 export interface Golfer {
@@ -126,29 +129,38 @@ export const usersApi = {
 // ---------------------------------------------------------------------------
 
 export const leaguesApi = {
-  create: (name: string, slug: string, description?: string, no_pick_penalty?: number) =>
-    api.post<League>("/leagues", { name, slug, description, no_pick_penalty }).then((r) => r.data),
+  create: (name: string, description?: string, no_pick_penalty?: number) =>
+    api.post<League>("/leagues", { name, description, no_pick_penalty }).then((r) => r.data),
 
-  get: (slug: string) =>
-    api.get<League>(`/leagues/${slug}`).then((r) => r.data),
+  get: (leagueId: string) =>
+    api.get<League>(`/leagues/${leagueId}`).then((r) => r.data),
 
-  join: (slug: string) =>
-    api.post<LeagueMember>(`/leagues/${slug}/join`).then((r) => r.data),
+  joinByCode: (inviteCode: string) =>
+    api.post<LeagueMember>(`/leagues/join/${inviteCode}`).then((r) => r.data),
 
-  members: (slug: string) =>
-    api.get<LeagueMember[]>(`/leagues/${slug}/members`).then((r) => r.data),
+  members: (leagueId: string) =>
+    api.get<LeagueMember[]>(`/leagues/${leagueId}/members`).then((r) => r.data),
 
-  updateMemberRole: (slug: string, userId: string, role: "admin" | "member") =>
-    api.patch<LeagueMember>(`/leagues/${slug}/members/${userId}/role`, { role }).then((r) => r.data),
+  updateMemberRole: (leagueId: string, userId: string, role: "admin" | "member") =>
+    api.patch<LeagueMember>(`/leagues/${leagueId}/members/${userId}/role`, { role }).then((r) => r.data),
 
-  removeMember: (slug: string, userId: string) =>
-    api.delete(`/leagues/${slug}/members/${userId}`).then((r) => r.data),
+  removeMember: (leagueId: string, userId: string) =>
+    api.delete(`/leagues/${leagueId}/members/${userId}`).then((r) => r.data),
 
-  getTournaments: (slug: string) =>
-    api.get<Tournament[]>(`/leagues/${slug}/tournaments`).then((r) => r.data),
+  pendingRequests: (leagueId: string) =>
+    api.get<LeagueMember[]>(`/leagues/${leagueId}/requests`).then((r) => r.data),
 
-  updateTournaments: (slug: string, tournamentIds: string[]) =>
-    api.put<Tournament[]>(`/leagues/${slug}/tournaments`, { tournament_ids: tournamentIds }).then((r) => r.data),
+  approveRequest: (leagueId: string, userId: string) =>
+    api.post<LeagueMember>(`/leagues/${leagueId}/requests/${userId}/approve`).then((r) => r.data),
+
+  denyRequest: (leagueId: string, userId: string) =>
+    api.delete(`/leagues/${leagueId}/requests/${userId}`).then((r) => r.data),
+
+  getTournaments: (leagueId: string) =>
+    api.get<Tournament[]>(`/leagues/${leagueId}/tournaments`).then((r) => r.data),
+
+  updateTournaments: (leagueId: string, tournamentIds: string[]) =>
+    api.put<Tournament[]>(`/leagues/${leagueId}/tournaments`, { tournament_ids: tournamentIds }).then((r) => r.data),
 };
 
 // ---------------------------------------------------------------------------
@@ -180,17 +192,17 @@ export const golfersApi = {
 // ---------------------------------------------------------------------------
 
 export const picksApi = {
-  submit: (slug: string, tournament_id: string, golfer_id: string) =>
-    api.post<Pick>(`/leagues/${slug}/picks`, { tournament_id, golfer_id }).then((r) => r.data),
+  submit: (leagueId: string, tournament_id: string, golfer_id: string) =>
+    api.post<Pick>(`/leagues/${leagueId}/picks`, { tournament_id, golfer_id }).then((r) => r.data),
 
-  change: (slug: string, pickId: string, golfer_id: string) =>
-    api.patch<Pick>(`/leagues/${slug}/picks/${pickId}`, { golfer_id }).then((r) => r.data),
+  change: (leagueId: string, pickId: string, golfer_id: string) =>
+    api.patch<Pick>(`/leagues/${leagueId}/picks/${pickId}`, { golfer_id }).then((r) => r.data),
 
-  mine: (slug: string) =>
-    api.get<Pick[]>(`/leagues/${slug}/picks/mine`).then((r) => r.data),
+  mine: (leagueId: string) =>
+    api.get<Pick[]>(`/leagues/${leagueId}/picks/mine`).then((r) => r.data),
 
-  all: (slug: string) =>
-    api.get<Pick[]>(`/leagues/${slug}/picks`).then((r) => r.data),
+  all: (leagueId: string) =>
+    api.get<Pick[]>(`/leagues/${leagueId}/picks`).then((r) => r.data),
 };
 
 // ---------------------------------------------------------------------------
@@ -198,8 +210,8 @@ export const picksApi = {
 // ---------------------------------------------------------------------------
 
 export const standingsApi = {
-  get: (slug: string) =>
-    api.get<StandingsResponse>(`/leagues/${slug}/standings`).then((r) => r.data),
+  get: (leagueId: string) =>
+    api.get<StandingsResponse>(`/leagues/${leagueId}/standings`).then((r) => r.data),
 };
 
 // ---------------------------------------------------------------------------

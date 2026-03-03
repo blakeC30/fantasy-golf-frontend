@@ -20,47 +20,47 @@ export function useTournamentField(tournamentId: string | undefined) {
   });
 }
 
-export function useMyPicks(slug: string) {
+export function useMyPicks(leagueId: string) {
   return useQuery({
-    queryKey: ["myPicks", slug],
-    queryFn: () => picksApi.mine(slug),
-    enabled: !!slug,
+    queryKey: ["myPicks", leagueId],
+    queryFn: () => picksApi.mine(leagueId),
+    enabled: !!leagueId,
   });
 }
 
-export function useAllPicks(slug: string) {
+export function useAllPicks(leagueId: string) {
   return useQuery({
-    queryKey: ["allPicks", slug],
-    queryFn: () => picksApi.all(slug),
-    enabled: !!slug,
+    queryKey: ["allPicks", leagueId],
+    queryFn: () => picksApi.all(leagueId),
+    enabled: !!leagueId,
   });
 }
 
-export function useStandings(slug: string) {
+export function useStandings(leagueId: string) {
   return useQuery({
-    queryKey: ["standings", slug],
-    queryFn: () => standingsApi.get(slug),
-    enabled: !!slug,
+    queryKey: ["standings", leagueId],
+    queryFn: () => standingsApi.get(leagueId),
+    enabled: !!leagueId,
   });
 }
 
-export function useSubmitPick(slug: string) {
+export function useSubmitPick(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ tournament_id, golfer_id }: { tournament_id: string; golfer_id: string }) =>
-      picksApi.submit(slug, tournament_id, golfer_id),
+      picksApi.submit(leagueId, tournament_id, golfer_id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["myPicks", slug] });
-      qc.invalidateQueries({ queryKey: ["standings", slug] });
+      qc.invalidateQueries({ queryKey: ["myPicks", leagueId] });
+      qc.invalidateQueries({ queryKey: ["standings", leagueId] });
     },
   });
 }
 
-export function useChangePick(slug: string) {
+export function useChangePick(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ pickId, golfer_id }: { pickId: string; golfer_id: string }) =>
-      picksApi.change(slug, pickId, golfer_id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["myPicks", slug] }),
+      picksApi.change(leagueId, pickId, golfer_id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["myPicks", leagueId] }),
   });
 }

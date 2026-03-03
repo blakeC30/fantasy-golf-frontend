@@ -12,11 +12,11 @@ import { StandingsTable } from "../components/StandingsTable";
 import { TournamentBadge } from "../components/TournamentBadge";
 
 export function Dashboard() {
-  const { slug } = useParams<{ slug: string }>();
-  const { data: league } = useLeague(slug!);
-  const { data: tournaments } = useLeagueTournaments(slug!);
-  const { data: myPicks } = useMyPicks(slug!);
-  const { data: standings } = useStandings(slug!);
+  const { leagueId } = useParams<{ leagueId: string }>();
+  const { data: league } = useLeague(leagueId!);
+  const { data: tournaments } = useLeagueTournaments(leagueId!);
+  const { data: myPicks } = useMyPicks(leagueId!);
+  const { data: standings } = useStandings(leagueId!);
 
   // The "active" tournament is any in_progress one, or the nearest upcoming scheduled
   // one (smallest start_date in the future). The backend returns DESC order, so we
@@ -35,7 +35,6 @@ export function Dashboard() {
       {/* League title */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{league?.name ?? "…"}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">/{slug}</p>
       </div>
 
       {/* Current tournament card */}
@@ -60,7 +59,7 @@ export function Dashboard() {
                   </p>
                 ) : (
                   <Link
-                    to={`/leagues/${slug}/pick`}
+                    to={`/leagues/${leagueId}/pick`}
                     className="text-xs text-green-700 hover:underline"
                   >
                     Change pick →
@@ -69,7 +68,7 @@ export function Dashboard() {
               </div>
             ) : (
               <Link
-                to={`/leagues/${slug}/pick`}
+                to={`/leagues/${leagueId}/pick`}
                 className="bg-green-800 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg whitespace-nowrap"
               >
                 Make your pick →
@@ -88,7 +87,7 @@ export function Dashboard() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900">Standings</h2>
           <Link
-            to={`/leagues/${slug}/leaderboard`}
+            to={`/leagues/${leagueId}/leaderboard`}
             className="text-sm text-green-700 hover:underline"
           >
             View full leaderboard →

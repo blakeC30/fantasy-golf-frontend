@@ -14,8 +14,8 @@ function formatPoints(pts: number | null): string {
 }
 
 export function MyPicks() {
-  const { slug } = useParams<{ slug: string }>();
-  const { data: picks, isLoading } = useMyPicks(slug!);
+  const { leagueId } = useParams<{ leagueId: string }>();
+  const { data: picks, isLoading } = useMyPicks(leagueId!);
 
   const sorted = picks
     ?.slice()
@@ -28,7 +28,7 @@ export function MyPicks() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">My Picks</h1>
         <Link
-          to={`/leagues/${slug}/pick`}
+          to={`/leagues/${leagueId}/pick`}
           className="bg-green-800 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg"
         >
           Make Pick
@@ -77,7 +77,7 @@ export function MyPicks() {
       ) : (
         <div className="text-center py-16 text-gray-400">
           <p>No picks yet this season.</p>
-          <Link to={`/leagues/${slug}/pick`} className="text-green-700 hover:underline text-sm mt-2 inline-block">
+          <Link to={`/leagues/${leagueId}/pick`} className="text-green-700 hover:underline text-sm mt-2 inline-block">
             Make your first pick →
           </Link>
         </div>

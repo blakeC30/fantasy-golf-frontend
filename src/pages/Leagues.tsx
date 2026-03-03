@@ -1,48 +1,32 @@
 /**
  * Leagues — post-login landing page.
  *
- * Shows all leagues the user belongs to, plus options to create or join one.
+ * Shows all leagues the user belongs to, plus an option to create a new one.
+ * Joining a league is done via an invite link shared by the league admin.
  */
 
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useMyLeagues, useCreateLeague, useJoinLeague } from "../hooks/useLeague";
+import { useMyLeagues, useCreateLeague } from "../hooks/useLeague";
 
 export function Leagues() {
   const navigate = useNavigate();
   const { data: leagues, isLoading } = useMyLeagues();
   const createLeague = useCreateLeague();
-  const joinLeague = useJoinLeague();
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
-  const [createSlug, setCreateSlug] = useState("");
   const [createError, setCreateError] = useState("");
-
-  const [joinSlug, setJoinSlug] = useState("");
-  const [joinError, setJoinError] = useState("");
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setCreateError("");
     try {
-      const league = await createLeague.mutateAsync({ name: createName, slug: createSlug });
-      navigate(`/leagues/${league.slug}`);
+      const league = await createLeague.mutateAsync({ name: createName });
+      navigate(`/leagues/${league.id}`);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setCreateError(msg ?? "Failed to create league.");
-    }
-  }
-
-  async function handleJoin(e: React.FormEvent) {
-    e.preventDefault();
-    setJoinError("");
-    try {
-      await joinLeague.mutateAsync(joinSlug.trim());
-      navigate(`/leagues/${joinSlug.trim()}`);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setJoinError(msg ?? "Failed to join league.");
     }
   }
 
@@ -58,12 +42,11 @@ export function Leagues() {
           {leagues.map((l) => (
             <Link
               key={l.id}
-              to={`/leagues/${l.slug}`}
+              to={`/leagues/${l.id}`}
               className="bg-white border border-gray-200 rounded-xl p-5 hover:border-green-500 hover:shadow-sm transition-all"
             >
               <h2 className="font-semibold text-gray-900">{l.name}</h2>
               {l.description && <p className="text-sm text-gray-500 mt-1">{l.description}</p>}
-              <p className="text-xs text-gray-400 mt-2">/{l.slug}</p>
             </Link>
           ))}
         </div>
@@ -93,16 +76,6 @@ export function Leagues() {
                 onChange={(e) => setCreateName(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
-              <input
-                type="text"
-                placeholder="URL slug (e.g. smith-family)"
-                required
-                pattern="[a-z0-9-]+"
-                title="Lowercase letters, numbers, and hyphens only"
-                value={createSlug}
-                onChange={(e) => setCreateSlug(e.target.value.toLowerCase())}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
               {createError && <p className="text-xs text-red-600">{createError}</p>}
               <div className="flex gap-2">
                 <button
@@ -127,24 +100,11 @@ export function Leagues() {
         {/* Join */}
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <h2 className="font-semibold text-gray-900 mb-3">Join a league</h2>
-          <form onSubmit={handleJoin} className="space-y-2">
-            <input
-              type="text"
-              placeholder="League slug"
-              required
-              value={joinSlug}
-              onChange={(e) => setJoinSlug(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            {joinError && <p className="text-xs text-red-600">{joinError}</p>}
-            <button
-              type="submit"
-              disabled={joinLeague.isPending}
-              className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg"
-            >
-              {joinLeague.isPending ? "Joining…" : "Join"}
-            </button>
-          </form>
+          <p className="text-sm text-gray-500">
+            Ask a league admin to share their invite link with you. The link will
+            look like <span className="font-mono text-gray-700">/join/…</span> and
+            will submit a join request directly.
+          </p>
         </div>
       </div>
     </div>

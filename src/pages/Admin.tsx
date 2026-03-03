@@ -10,8 +10,12 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { adminApi } from "../api/endpoints";
 import {
+  useApproveRequest,
+  useDenyRequest,
+  useLeague,
   useLeagueMembers,
   useLeagueTournaments,
+  usePendingRequests,
   useRemoveMember,
   useUpdateLeagueTournaments,
   useUpdateMemberRole,
@@ -20,17 +24,33 @@ import { useTournaments } from "../hooks/usePick";
 import { useAuthStore } from "../store/authStore";
 
 export function Admin() {
-  const { slug } = useParams<{ slug: string }>();
+  const { leagueId } = useParams<{ leagueId: string }>();
   const currentUser = useAuthStore((s) => s.user);
 
-  const { data: members, isLoading } = useLeagueMembers(slug!);
-  const updateRole = useUpdateMemberRole(slug!);
-  const removeMember = useRemoveMember(slug!);
+  const { data: league } = useLeague(leagueId!);
+  const { data: members, isLoading } = useLeagueMembers(leagueId!);
+  const updateRole = useUpdateMemberRole(leagueId!);
+  const removeMember = useRemoveMember(leagueId!);
+
+  const { data: pendingRequests } = usePendingRequests(leagueId!);
+  const approveRequest = useApproveRequest(leagueId!);
+  const denyRequest = useDenyRequest(leagueId!);
+
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  function copyInviteLink() {
+    if (!league) return;
+    const url = `${window.location.origin}/join/${league.invite_code}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  }
 
   // Tournament schedule state
   const { data: allTournaments } = useTournaments();
-  const { data: leagueTournaments } = useLeagueTournaments(slug!);
-  const updateSchedule = useUpdateLeagueTournaments(slug!);
+  const { data: leagueTournaments } = useLeagueTournaments(leagueId!);
+  const updateSchedule = useUpdateLeagueTournaments(leagueId!);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [scheduleSaved, setScheduleSaved] = useState(false);
 
@@ -86,6 +106,75 @@ export function Admin() {
   return (
     <div className="space-y-10">
       <h1 className="text-2xl font-bold text-gray-900">Admin</h1>
+
+      {/* Invite link — admin only */}
+      {isAdmin && league && (
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">Invite Link</h2>
+          <p className="text-sm text-gray-500 mb-3">
+            Share this link to let people request to join your league.
+            You'll approve or deny requests below.
+          </p>
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+            <span className="text-sm text-gray-700 flex-1 truncate font-mono">
+              {window.location.origin}/join/{league.invite_code}
+            </span>
+            <button
+              onClick={copyInviteLink}
+              className="text-xs font-semibold text-green-700 hover:text-green-900 whitespace-nowrap"
+            >
+              {linkCopied ? "Copied!" : "Copy link"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* Pending join requests — admin only */}
+      {isAdmin && (
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Join Requests
+            {pendingRequests && pendingRequests.length > 0 && (
+              <span className="ml-2 text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                {pendingRequests.length}
+              </span>
+            )}
+          </h2>
+          {!pendingRequests || pendingRequests.length === 0 ? (
+            <p className="text-sm text-gray-400">No pending requests.</p>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+              {pendingRequests.map((r) => (
+                <div key={r.user_id} className="flex items-center gap-4 px-4 py-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">{r.user.display_name}</p>
+                    <p className="text-xs text-gray-400">{r.user.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => approveRequest.mutate(r.user_id)}
+                      disabled={approveRequest.isPending}
+                      className="text-xs font-semibold text-green-700 hover:underline disabled:opacity-40"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Deny ${r.user.display_name}'s request?`))
+                          denyRequest.mutate(r.user_id);
+                      }}
+                      disabled={denyRequest.isPending}
+                      className="text-xs text-red-500 hover:underline disabled:opacity-40"
+                    >
+                      Deny
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Members */}
       <section>

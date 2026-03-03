@@ -1,7 +1,7 @@
 /**
  * App — root router.
  *
- * Public routes (/login, /register, /join/:slug) are accessible without auth.
+ * Public routes (/login, /register, /join/:inviteCode) are accessible without auth.
  * All other routes are wrapped in <Layout>, which redirects to /login if there
  * is no token.
  */
@@ -24,16 +24,16 @@ export default function App() {
       {/* Public */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/join/:slug" element={<JoinLeague />} />
+      <Route path="/join/:inviteCode" element={<JoinLeague />} />
 
       {/* Auth-guarded — all share the Layout shell */}
       <Route element={<Layout />}>
         <Route path="/leagues" element={<Leagues />} />
-        <Route path="/leagues/:slug" element={<Dashboard />} />
-        <Route path="/leagues/:slug/pick" element={<MakePick />} />
-        <Route path="/leagues/:slug/picks" element={<MyPicks />} />
-        <Route path="/leagues/:slug/leaderboard" element={<Leaderboard />} />
-        <Route path="/leagues/:slug/admin" element={<Admin />} />
+        <Route path="/leagues/:leagueId" element={<Dashboard />} />
+        <Route path="/leagues/:leagueId/pick" element={<MakePick />} />
+        <Route path="/leagues/:leagueId/picks" element={<MyPicks />} />
+        <Route path="/leagues/:leagueId/leaderboard" element={<Leaderboard />} />
+        <Route path="/leagues/:leagueId/admin" element={<Admin />} />
       </Route>
 
       {/* Default: send root to /leagues */}

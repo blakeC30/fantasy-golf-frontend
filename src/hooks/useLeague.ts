@@ -12,19 +12,19 @@ export function useMyLeagues() {
   });
 }
 
-export function useLeague(slug: string) {
+export function useLeague(leagueId: string) {
   return useQuery({
-    queryKey: ["league", slug],
-    queryFn: () => leaguesApi.get(slug),
-    enabled: !!slug,
+    queryKey: ["league", leagueId],
+    queryFn: () => leaguesApi.get(leagueId),
+    enabled: !!leagueId,
   });
 }
 
-export function useLeagueMembers(slug: string) {
+export function useLeagueMembers(leagueId: string) {
   return useQuery({
-    queryKey: ["leagueMembers", slug],
-    queryFn: () => leaguesApi.members(slug),
-    enabled: !!slug,
+    queryKey: ["leagueMembers", leagueId],
+    queryFn: () => leaguesApi.members(leagueId),
+    enabled: !!leagueId,
   });
 }
 
@@ -33,56 +33,83 @@ export function useCreateLeague() {
   return useMutation({
     mutationFn: ({
       name,
-      slug,
       description,
       no_pick_penalty,
     }: {
       name: string;
-      slug: string;
       description?: string;
       no_pick_penalty?: number;
-    }) => leaguesApi.create(name, slug, description, no_pick_penalty),
+    }) => leaguesApi.create(name, description, no_pick_penalty),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["myLeagues"] }),
   });
 }
 
-export function useJoinLeague() {
+export function useJoinByCode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (slug: string) => leaguesApi.join(slug),
+    mutationFn: (inviteCode: string) => leaguesApi.joinByCode(inviteCode),
+    // Only invalidate myLeagues when the join was auto-approved (public league).
+    // For private leagues the request is pending — the user's league list won't change yet.
     onSuccess: () => qc.invalidateQueries({ queryKey: ["myLeagues"] }),
   });
 }
 
-export function useUpdateMemberRole(slug: string) {
+export function useUpdateMemberRole(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: "admin" | "member" }) =>
-      leaguesApi.updateMemberRole(slug, userId, role),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueMembers", slug] }),
+      leaguesApi.updateMemberRole(leagueId, userId, role),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueMembers", leagueId] }),
   });
 }
 
-export function useRemoveMember(slug: string) {
+export function useRemoveMember(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) => leaguesApi.removeMember(slug, userId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueMembers", slug] }),
+    mutationFn: (userId: string) => leaguesApi.removeMember(leagueId, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueMembers", leagueId] }),
   });
 }
 
-export function useLeagueTournaments(slug: string) {
+export function useLeagueTournaments(leagueId: string) {
   return useQuery({
-    queryKey: ["leagueTournaments", slug],
-    queryFn: () => leaguesApi.getTournaments(slug),
-    enabled: !!slug,
+    queryKey: ["leagueTournaments", leagueId],
+    queryFn: () => leaguesApi.getTournaments(leagueId),
+    enabled: !!leagueId,
   });
 }
 
-export function useUpdateLeagueTournaments(slug: string) {
+export function useUpdateLeagueTournaments(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (tournamentIds: string[]) => leaguesApi.updateTournaments(slug, tournamentIds),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueTournaments", slug] }),
+    mutationFn: (tournamentIds: string[]) => leaguesApi.updateTournaments(leagueId, tournamentIds),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueTournaments", leagueId] }),
+  });
+}
+
+export function usePendingRequests(leagueId: string) {
+  return useQuery({
+    queryKey: ["pendingRequests", leagueId],
+    queryFn: () => leaguesApi.pendingRequests(leagueId),
+    enabled: !!leagueId,
+  });
+}
+
+export function useApproveRequest(leagueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => leaguesApi.approveRequest(leagueId, userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pendingRequests", leagueId] });
+      qc.invalidateQueries({ queryKey: ["leagueMembers", leagueId] });
+    },
+  });
+}
+
+export function useDenyRequest(leagueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => leaguesApi.denyRequest(leagueId, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pendingRequests", leagueId] }),
   });
 }

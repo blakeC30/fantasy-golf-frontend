@@ -9,13 +9,13 @@ import { useLeagueTournaments } from "../hooks/useLeague";
 import { useMyPicks, useSubmitPick, useTournamentField, useChangePick } from "../hooks/usePick";
 
 export function MakePick() {
-  const { slug } = useParams<{ slug: string }>();
+  const { leagueId } = useParams<{ leagueId: string }>();
   const [error, setError] = useState("");
 
-  const { data: leagueTournaments } = useLeagueTournaments(slug!);
-  const { data: myPicks } = useMyPicks(slug!);
-  const submitPick = useSubmitPick(slug!);
-  const changePick = useChangePick(slug!);
+  const { data: leagueTournaments } = useLeagueTournaments(leagueId!);
+  const { data: myPicks } = useMyPicks(leagueId!);
+  const submitPick = useSubmitPick(leagueId!);
+  const changePick = useChangePick(leagueId!);
 
   // Target the earliest upcoming scheduled tournament in the league's schedule.
   const tournament = leagueTournaments

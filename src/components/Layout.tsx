@@ -11,7 +11,7 @@ import { useAuth } from "../hooks/useAuth";
 
 export function Layout() {
   const { token, user, bootstrapping, logout } = useAuth();
-  const { slug } = useParams<{ slug?: string }>();
+  const { leagueId } = useParams<{ leagueId?: string }>();
 
   if (bootstrapping) {
     return (
@@ -35,22 +35,22 @@ export function Layout() {
           </Link>
 
           <nav className="flex items-center gap-5 text-sm font-medium">
-            {slug && (
+            {leagueId && (
               <>
-                <Link to={`/leagues/${slug}`} className="hover:text-green-200">
+                <Link to={`/leagues/${leagueId}`} className="hover:text-green-200">
                   Dashboard
                 </Link>
-                <Link to={`/leagues/${slug}/pick`} className="hover:text-green-200">
+                <Link to={`/leagues/${leagueId}/pick`} className="hover:text-green-200">
                   Make Pick
                 </Link>
-                <Link to={`/leagues/${slug}/picks`} className="hover:text-green-200">
+                <Link to={`/leagues/${leagueId}/picks`} className="hover:text-green-200">
                   My Picks
                 </Link>
-                <Link to={`/leagues/${slug}/leaderboard`} className="hover:text-green-200">
+                <Link to={`/leagues/${leagueId}/leaderboard`} className="hover:text-green-200">
                   Leaderboard
                 </Link>
                 {user?.is_platform_admin && (
-                  <Link to={`/leagues/${slug}/admin`} className="hover:text-green-200">
+                  <Link to={`/leagues/${leagueId}/admin`} className="hover:text-green-200">
                     Admin
                   </Link>
                 )}

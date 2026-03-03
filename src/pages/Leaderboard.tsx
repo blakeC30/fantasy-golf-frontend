@@ -7,8 +7,8 @@ import { useStandings } from "../hooks/usePick";
 import { StandingsTable } from "../components/StandingsTable";
 
 export function Leaderboard() {
-  const { slug } = useParams<{ slug: string }>();
-  const { data: standings, isLoading } = useStandings(slug!);
+  const { leagueId } = useParams<{ leagueId: string }>();
+  const { data: standings, isLoading } = useStandings(leagueId!);
 
   return (
     <div className="space-y-6">
