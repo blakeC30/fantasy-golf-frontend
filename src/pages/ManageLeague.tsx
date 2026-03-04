@@ -21,9 +21,121 @@ import {
   useUpdateLeagueTournaments,
   useUpdateMemberRole,
 } from "../hooks/useLeague";
-import { useTournaments } from "../hooks/usePick";
+import { useAdminOverridePick, useAllPicks, useTournamentField, useTournaments } from "../hooks/usePick";
 import { fmtTournamentName, isoWeekKey } from "../utils";
 import { useAuthStore } from "../store/authStore";
+
+// ---------------------------------------------------------------------------
+// Custom dropdown — matches the Leaderboard tournament picker style
+// ---------------------------------------------------------------------------
+
+interface DropdownOption {
+  value: string;
+  label: string;
+  badge?: string;
+  badgeColor?: string;
+}
+
+function DropdownSelect({
+  value,
+  onChange,
+  placeholder,
+  options,
+  disabled = false,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  options: DropdownOption[];
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+  const filtered = search
+    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => { if (!disabled) { setOpen((o) => !o); setSearch(""); } }}
+        className={`w-full flex items-center gap-2 text-sm border rounded-lg px-3 py-1.5 bg-white text-left transition-colors focus:outline-none focus:ring-2 focus:ring-green-700 ${
+          disabled
+            ? "border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+            : "border-gray-300 text-gray-700 hover:border-green-500 cursor-pointer"
+        }`}
+      >
+        <span className="flex-1 truncate">
+          {selected ? selected.label : <span className="text-gray-400">{placeholder}</span>}
+        </span>
+        <svg
+          className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && !disabled && (
+        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-20">
+          {/* Search input — filters the list, value is never submitted directly */}
+          <div className="px-3 py-2 border-b border-gray-100">
+            <input
+              ref={inputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search…"
+              className="w-full text-sm outline-none placeholder-gray-400 bg-transparent"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400">No results.</p>
+            ) : (
+              filtered.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => { onChange(opt.value); setOpen(false); setSearch(""); }}
+                  className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between gap-3 transition-colors ${
+                    opt.value === value ? "bg-green-50 text-green-900" : "hover:bg-gray-50 text-gray-700"
+                  }`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {opt.badge && (
+                    <span className={`text-xs shrink-0 font-medium px-2 py-0.5 rounded-full ${opt.badgeColor ?? "bg-gray-100 text-gray-500"}`}>
+                      {opt.badge}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Small icon helpers
@@ -57,6 +169,14 @@ export function ManageLeague() {
 
   const [linkCopied, setLinkCopied] = useState(false);
   const [membersEditing, setMembersEditing] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Revise pick state
+  // ---------------------------------------------------------------------------
+  const [revisePickTournamentId, setRevisePickTournamentId] = useState<string | null>(null);
+  const [revisePickMemberId, setRevisePickMemberId] = useState<string | null>(null);
+  const [revisePickGolferId, setRevisePickGolferId] = useState<string>("none");
+  const [reviseSaved, setReviseSaved] = useState(false);
 
   function copyInviteLink() {
     if (!league) return;
@@ -170,6 +290,45 @@ export function ManageLeague() {
     );
     setScheduleSaved(true);
     setScheduleEditing(false);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Revise pick hooks + effects
+  // ---------------------------------------------------------------------------
+  const { data: allPicks } = useAllPicks(leagueId!);
+  const { data: tournamentField, isLoading: isLoadingField } = useTournamentField(
+    revisePickTournamentId ?? undefined
+  );
+  const overridePick = useAdminOverridePick(leagueId!);
+
+  // Pre-fill the golfer dropdown when tournament/member selection changes.
+  // allPicks is intentionally excluded: it updates after a save (cache invalidation)
+  // and we don't want that to reset the saved confirmation message.
+  useEffect(() => {
+    if (!revisePickTournamentId || !revisePickMemberId) {
+      setRevisePickGolferId("none");
+      return;
+    }
+    if (allPicks) {
+      const existing = allPicks.find(
+        (p) => p.tournament_id === revisePickTournamentId && p.user_id === revisePickMemberId
+      );
+      setRevisePickGolferId(existing ? existing.golfer_id : "none");
+    }
+    overridePick.reset();
+    setReviseSaved(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revisePickTournamentId, revisePickMemberId]);
+
+  async function handleSaveRevisePick() {
+    if (!revisePickTournamentId || !revisePickMemberId) return;
+    await overridePick.mutateAsync({
+      user_id: revisePickMemberId,
+      tournament_id: revisePickTournamentId,
+      golfer_id: revisePickGolferId === "none" ? null : revisePickGolferId,
+    });
+    setReviseSaved(true);
+    setTimeout(() => setReviseSaved(false), 4000);
   }
 
   // Group all tournaments by month, sorted earliest to latest within each group.
@@ -663,6 +822,119 @@ export function ManageLeague() {
               </button>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Revise Pick — manager only */}
+      {isManager && (
+        <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <SectionIcon>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+              </svg>
+            </SectionIcon>
+            <h2 className="text-base font-bold text-gray-900">Revise Pick</h2>
+          </div>
+          <p className="text-sm text-gray-500">
+            Override any member's pick for a tournament. Use this to correct errors or apply commissioner decisions.
+          </p>
+
+          <div className="space-y-4">
+            <div className="grid sm:grid-cols-3 gap-3">
+              {/* Tournament */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tournament</label>
+                <DropdownSelect
+                  value={revisePickTournamentId ?? ""}
+                  onChange={(val) => { setRevisePickTournamentId(val || null); setReviseSaved(false); }}
+                  placeholder="Select tournament…"
+                  options={
+                    leagueTournaments
+                      ?.filter((t) => t.status !== "scheduled")
+                      .slice()
+                      .sort((a, b) => b.start_date.localeCompare(a.start_date))
+                      .map((t) => ({
+                        value: t.id,
+                        label: fmtTournamentName(t.name),
+                        badge: t.status === "in_progress" ? "Live" : "Final",
+                        badgeColor: t.status === "in_progress"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-500",
+                      })) ?? []
+                  }
+                />
+              </div>
+
+              {/* Member */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Member</label>
+                <DropdownSelect
+                  value={revisePickMemberId ?? ""}
+                  onChange={(val) => { setRevisePickMemberId(val || null); setReviseSaved(false); }}
+                  placeholder="Select member…"
+                  options={
+                    members
+                      ?.filter((m) => m.status === "approved")
+                      .slice()
+                      .sort((a, b) => a.user.display_name.localeCompare(b.user.display_name))
+                      .map((m) => ({ value: m.user_id, label: m.user.display_name })) ?? []
+                  }
+                />
+              </div>
+
+              {/* Golfer */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Golfer</label>
+                <DropdownSelect
+                  value={revisePickGolferId}
+                  onChange={(val) => { setRevisePickGolferId(val); setReviseSaved(false); }}
+                  placeholder="Select golfer…"
+                  disabled={!revisePickTournamentId || !revisePickMemberId || isLoadingField}
+                  options={[
+                    { value: "none", label: "No pick" },
+                    ...(tournamentField
+                      ?.slice()
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((g) => ({ value: g.id, label: g.name })) ?? []),
+                  ]}
+                />
+                {revisePickTournamentId && !isLoadingField && tournamentField?.length === 0 && (
+                  <p className="text-xs text-gray-400">Field not yet synced for this tournament.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSaveRevisePick}
+                disabled={
+                  !revisePickTournamentId ||
+                  !revisePickMemberId ||
+                  overridePick.isPending ||
+                  revisePickGolferId === (
+                    allPicks?.find(
+                      (p) => p.tournament_id === revisePickTournamentId && p.user_id === revisePickMemberId
+                    )?.golfer_id ?? "none"
+                  )
+                }
+                className="bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
+              >
+                {overridePick.isPending ? "Saving…" : "Save Pick"}
+              </button>
+              {reviseSaved && !overridePick.isPending && (
+                <div className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                  Pick saved successfully.
+                </div>
+              )}
+              {overridePick.isError && (
+                <p className="text-sm text-red-600">Failed to update pick. Please try again.</p>
+              )}
+            </div>
+          </div>
         </section>
       )}
 

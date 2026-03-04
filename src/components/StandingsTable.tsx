@@ -6,9 +6,7 @@ import type { StandingsRow } from "../api/endpoints";
 import { useAuthStore } from "../store/authStore";
 
 function formatPoints(pts: number): string {
-  if (pts >= 1_000_000) return `$${(pts / 1_000_000).toFixed(2)}M`;
-  if (pts >= 1_000) return `$${(pts / 1_000).toFixed(1)}K`;
-  return `$${pts.toLocaleString()}`;
+  return `$${Math.round(pts).toLocaleString()}`;
 }
 
 /** Golf-style rank label: "1", "T2", "T2", "4" */

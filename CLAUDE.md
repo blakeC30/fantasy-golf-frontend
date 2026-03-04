@@ -29,20 +29,24 @@ src/
 │   ├── Login.tsx
 │   ├── Register.tsx
 │   ├── Leagues.tsx         # Post-login landing — league list + create/join forms
+│   ├── CreateLeague.tsx    # Multi-step league creation wizard (name, description, schedule)
 │   ├── Dashboard.tsx       # Per-league home — current tournament, pick status, standings
 │   ├── MakePick.tsx        # Golfer selection form for upcoming tournament
-│   ├── MyPicks.tsx         # Season pick history
-│   ├── Leaderboard.tsx     # Full standings table
+│   ├── MyPicks.tsx         # Season pick history + stat cards
+│   ├── Leaderboard.tsx     # Full standings table with tournament breakdown
 │   ├── ManageLeague.tsx    # Manager panel — invite, settings, members, schedule
 │   ├── JoinLeague.tsx      # Invite-link landing page (auth gate + confirm form)
+│   ├── Settings.tsx        # User account settings — display name, league membership
 │   └── PlatformAdmin.tsx   # Platform admin only — data sync trigger
 ├── components/
-│   ├── Layout.tsx          # Auth-guarded shell — top nav, auth gate
+│   ├── Layout.tsx          # Auth-guarded shell — top nav, mobile bottom tab bar, auth gate
 │   ├── LeagueCard.tsx      # League card on Leagues page (rank, points, tournament info)
 │   ├── PickForm.tsx        # Golfer selection (used by MakePick)
 │   ├── GolferCard.tsx      # Selectable golfer row inside PickForm
+│   ├── GolferAvatar.tsx    # Circular headshot from CDN with fallback initials
 │   ├── StandingsTable.tsx  # Standings table (used by Dashboard + Leaderboard)
-│   └── TournamentBadge.tsx # Status/major badge for a tournament
+│   ├── TournamentBadge.tsx # Status/major badge for a tournament
+│   └── FlagIcon.tsx        # Golf flag SVG icon used in nav and empty states
 └── App.tsx                 # Route definitions
 ```
 
@@ -59,6 +63,8 @@ src/
 /leagues/:leagueId/picks        → MyPicks
 /leagues/:leagueId/leaderboard  → Leaderboard
 /leagues/:leagueId/manage       → ManageLeague (manager only — self-redirects non-managers)
+/leagues/new                    → CreateLeague (auth required — create a new league with schedule)
+/settings                       → Settings (auth required — display name, leave leagues)
 /admin                          → PlatformAdmin (platform admin only)
 /*                              → redirect to /
 ```

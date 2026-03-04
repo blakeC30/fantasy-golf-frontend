@@ -71,9 +71,11 @@ export interface Golfer {
 
 export interface Pick {
   id: string;
+  user_id?: string; // present on all-picks responses; absent on mine-only responses
   tournament_id: string;
   golfer_id: string;
   points_earned: number | null;
+  earnings_usd: number | null; // raw golfer earnings before multiplier
   submitted_at: string;
   golfer: Golfer;
   tournament: Tournament;
@@ -122,6 +124,7 @@ export interface GolferPickGroup {
   golfer_name: string;
   pick_count: number;
   pickers: PickerInfo[];
+  earnings_usd: number | null;
 }
 
 export interface TournamentPicksSummary {
@@ -270,6 +273,11 @@ export const picksApi = {
     api
       .get<TournamentPicksSummary>(`/leagues/${leagueId}/picks/tournament/${tournamentId}`)
       .then((r) => r.data),
+
+  // Manager-only: create, replace, or delete any member's pick for a tournament.
+  // golfer_id = null removes the pick entirely.
+  adminOverride: (leagueId: string, data: { user_id: string; tournament_id: string; golfer_id: string | null }) =>
+    api.put<Pick | null>(`/leagues/${leagueId}/picks/admin-override`, data).then((r) => r.data),
 };
 
 // ---------------------------------------------------------------------------

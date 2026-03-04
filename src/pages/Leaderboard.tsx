@@ -24,9 +24,7 @@ import type { GolferPickGroup } from "../api/endpoints";
 
 function formatPoints(pts: number | null): string {
   if (pts === null) return "—";
-  if (pts >= 1_000_000) return `$${(pts / 1_000_000).toFixed(2)}M`;
-  if (pts >= 1_000) return `$${(pts / 1_000).toFixed(1)}K`;
-  return `$${pts.toLocaleString()}`;
+  return `$${Math.round(pts).toLocaleString()}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,24 +141,37 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [view, setView] = useState<"table" | "chart">("table");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+        setDropdownSearch("");
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Sort: in_progress first, then completed desc, then scheduled asc
-  const sorted = [...(leagueTournaments ?? [])].sort((a, b) => {
-    const order = { in_progress: 0, completed: 1, scheduled: 2 };
-    if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
-    return a.start_date.localeCompare(b.start_date);
-  });
+  useEffect(() => {
+    if (dropdownOpen) dropdownInputRef.current?.focus();
+  }, [dropdownOpen]);
+
+  // Sort: in_progress first, then completed desc — upcoming tournaments excluded
+  const sorted = [...(leagueTournaments ?? [])]
+    .filter((t) => t.status !== "scheduled")
+    .sort((a, b) => {
+      const order = { in_progress: 0, completed: 1, scheduled: 2 };
+      if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+      return a.start_date.localeCompare(b.start_date);
+    });
+
+  const filteredTournaments = dropdownSearch
+    ? sorted.filter((t) => fmtTournamentName(t.name).toLowerCase().includes(dropdownSearch.toLowerCase()))
+    : sorted;
 
   const selectedTournament = sorted.find((t) => t.id === selectedId);
 
@@ -188,7 +199,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
         <div ref={dropdownRef} className="relative w-full sm:w-auto">
           <button
             type="button"
-            onClick={() => setDropdownOpen((o) => !o)}
+            onClick={() => { setDropdownOpen((o) => !o); setDropdownSearch(""); }}
             className="w-full sm:min-w-[220px] flex items-center gap-2 text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-700 transition-colors"
           >
             <span className="flex-1 text-left truncate">
@@ -202,28 +213,44 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
             </svg>
           </button>
           {dropdownOpen && (
-            <div className="absolute right-0 mt-1 w-full sm:w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10 max-h-72 overflow-y-auto">
-              {sorted.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => { setSelectedId(t.id); setDropdownOpen(false); }}
-                  className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between gap-3 transition-colors ${
-                    t.id === selectedId ? "bg-green-50 text-green-900" : "hover:bg-gray-50 text-gray-700"
-                  }`}
-                >
-                  <span className="truncate">{fmtTournamentName(t.name)}</span>
-                  <span className={`text-xs shrink-0 font-medium px-2 py-0.5 rounded-full ${
-                    t.status === "in_progress"
-                      ? "bg-green-100 text-green-700"
-                      : t.status === "completed"
-                      ? "bg-gray-100 text-gray-500"
-                      : "bg-blue-50 text-blue-600"
-                  }`}>
-                    {t.status === "in_progress" ? "Live" : t.status === "completed" ? "Final" : "Upcoming"}
-                  </span>
-                </button>
-              ))}
+            <div className="absolute right-0 mt-1 w-full sm:w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+              <div className="px-3 py-2 border-b border-gray-100">
+                <input
+                  ref={dropdownInputRef}
+                  type="text"
+                  value={dropdownSearch}
+                  onChange={(e) => setDropdownSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="w-full text-sm outline-none placeholder-gray-400 bg-transparent"
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {filteredTournaments.length === 0 ? (
+                  <p className="px-4 py-3 text-sm text-gray-400">No results.</p>
+                ) : (
+                  filteredTournaments.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => { setSelectedId(t.id); setDropdownOpen(false); setDropdownSearch(""); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between gap-3 transition-colors ${
+                        t.id === selectedId ? "bg-green-50 text-green-900" : "hover:bg-gray-50 text-gray-700"
+                      }`}
+                    >
+                      <span className="truncate">{fmtTournamentName(t.name)}</span>
+                      <span className={`text-xs shrink-0 font-medium px-2 py-0.5 rounded-full ${
+                        t.status === "in_progress"
+                          ? "bg-green-100 text-green-700"
+                          : t.status === "completed"
+                          ? "bg-gray-100 text-gray-500"
+                          : "bg-blue-50 text-blue-600"
+                      }`}>
+                        {t.status === "in_progress" ? "Live" : t.status === "completed" ? "Final" : "Upcoming"}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>

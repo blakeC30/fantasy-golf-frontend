@@ -73,3 +73,17 @@ export function useChangePick(leagueId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["myPicks", leagueId] }),
   });
 }
+
+export function useAdminOverridePick(leagueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { user_id: string; tournament_id: string; golfer_id: string | null }) =>
+      picksApi.adminOverride(leagueId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allPicks", leagueId] });
+      qc.invalidateQueries({ queryKey: ["myPicks", leagueId] });
+      qc.invalidateQueries({ queryKey: ["standings", leagueId] });
+      qc.invalidateQueries({ queryKey: ["tournamentPicksSummary", leagueId] });
+    },
+  });
+}
