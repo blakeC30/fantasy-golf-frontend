@@ -48,9 +48,9 @@ export function Leagues() {
       {/* Page header */}
       <div className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">
-          My Leagues
+          Fantasy Golf
         </p>
-        <h1 className="text-3xl font-bold text-gray-900">Your Leagues</h1>
+        <h1 className="text-3xl font-bold text-gray-900">My Leagues</h1>
       </div>
 
       {/* League list */}

@@ -410,7 +410,7 @@ export function ManageLeague() {
               <thead className="bg-green-900 text-white">
                 <tr>
                   <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Name</th>
-                  <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Email</th>
+                  <th className="hidden sm:table-cell px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Email</th>
                   <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Role</th>
                   {membersEditing && (
                     <th className="px-4 py-2.5 text-right text-xs uppercase tracking-wider font-semibold">Actions</th>
@@ -426,7 +426,7 @@ export function ManageLeague() {
                         {m.user.display_name}
                         {isMe && <span className="ml-1.5 text-xs text-green-600 font-normal">(you)</span>}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{m.user.email}</td>
+                      <td className="hidden sm:table-cell px-4 py-3 text-gray-500">{m.user.email}</td>
                       <td className="px-4 py-3">
                         <span
                           className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
@@ -575,7 +575,7 @@ export function ManageLeague() {
                                   {effectiveMultiplier}×
                                 </span>
                               ) : null}
-                              <span className="text-xs text-gray-400 flex-shrink-0">{t.start_date}</span>
+                              <span className="hidden sm:block text-xs text-gray-400 flex-shrink-0">{t.start_date}</span>
                             </div>
                           );
                         })}

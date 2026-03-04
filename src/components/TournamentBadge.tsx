@@ -4,6 +4,10 @@
 
 import type { Tournament } from "../api/endpoints";
 
+function fmt(dateStr: string): string {
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function formatPurse(purse: number | null): string | null {
   if (purse === null) return null;
   if (purse >= 1_000_000) {
@@ -48,7 +52,7 @@ export function TournamentBadge({ tournament, showDates = false }: Props) {
 
       {showDates && (
         <span className="text-xs text-gray-500">
-          {tournament.start_date} – {tournament.end_date}
+          {fmt(tournament.start_date)} – {fmt(tournament.end_date)}
         </span>
       )}
     </div>

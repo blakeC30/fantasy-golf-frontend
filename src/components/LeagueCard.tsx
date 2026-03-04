@@ -43,7 +43,11 @@ function rankStyle(rank: number): string {
 }
 
 function formatPoints(pts: number): string {
-  return "$" + Math.round(pts).toLocaleString();
+  const sign = pts < 0 ? "-" : "";
+  const abs = Math.abs(pts);
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}$${Math.round(abs).toLocaleString()}`;
 }
 
 export function LeagueCard({ league }: { league: League }) {
@@ -100,7 +104,7 @@ export function LeagueCard({ league }: { league: League }) {
           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
             Points
           </p>
-          <p className="text-2xl font-bold tabular-nums leading-none text-gray-800">
+          <p className="text-xl font-bold tabular-nums leading-none text-gray-800 truncate">
             {myRow ? formatPoints(myRow.total_points) : "—"}
           </p>
         </div>

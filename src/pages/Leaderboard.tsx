@@ -185,11 +185,11 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
     <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-lg font-bold text-gray-900">Tournament Breakdown</h2>
-        <div ref={dropdownRef} className="relative">
+        <div ref={dropdownRef} className="relative w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setDropdownOpen((o) => !o)}
-            className="flex items-center gap-2 text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-700 transition-colors min-w-[220px]"
+            className="w-full sm:min-w-[220px] flex items-center gap-2 text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-700 transition-colors"
           >
             <span className="flex-1 text-left truncate">
               {selectedTournament ? fmtTournamentName(selectedTournament.name) : "Select a tournament…"}
@@ -202,7 +202,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
             </svg>
           </button>
           {dropdownOpen && (
-            <div className="absolute right-0 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+            <div className="absolute right-0 mt-1 w-full sm:w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
               {sorted.map((t) => (
                 <button
                   key={t.id}
