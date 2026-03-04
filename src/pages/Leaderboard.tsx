@@ -43,7 +43,7 @@ function PickBarChart({ groups, noPicks, isCompleted }: BarChartProps) {
   const [tooltip, setTooltip] = useState<string | null>(null);
 
   // Build chart data: one bar per golfer + one "No Pick" bar if applicable.
-  const bars: { label: string; count: number; points: number | null; names: string[] }[] = [
+  const bars: { label: string; fullName: string; count: number; points: number | null; names: string[] }[] = [
     ...groups.map((g) => ({
       label: g.golfer_name.split(" ").pop() ?? g.golfer_name, // last name only for space
       fullName: g.golfer_name,
@@ -54,7 +54,7 @@ function PickBarChart({ groups, noPicks, isCompleted }: BarChartProps) {
     ...(noPicks > 0
       ? [{ label: "No Pick", fullName: "No Pick", count: noPicks, points: null, names: [] }]
       : []),
-  ] as { label: string; fullName: string; count: number; points: number | null; names: string[] }[];
+  ];
 
   const maxCount = Math.max(...bars.map((b) => b.count), 1);
 
