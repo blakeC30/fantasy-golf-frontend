@@ -19,6 +19,8 @@ import { Leaderboard } from "./pages/Leaderboard";
 import { ManageLeague } from "./pages/ManageLeague";
 import { PlatformAdmin } from "./pages/PlatformAdmin";
 import { JoinLeague } from "./pages/JoinLeague";
+import { Settings } from "./pages/Settings";
+import { CreateLeague } from "./pages/CreateLeague";
 
 export default function App() {
   return (
@@ -32,12 +34,14 @@ export default function App() {
       {/* Auth-guarded — all share the Layout shell */}
       <Route element={<Layout />}>
         <Route path="/leagues" element={<Leagues />} />
+        <Route path="/leagues/new" element={<CreateLeague />} />
         <Route path="/leagues/:leagueId" element={<Dashboard />} />
         <Route path="/leagues/:leagueId/pick" element={<MakePick />} />
         <Route path="/leagues/:leagueId/picks" element={<MyPicks />} />
         <Route path="/leagues/:leagueId/leaderboard" element={<Leaderboard />} />
         <Route path="/leagues/:leagueId/manage" element={<ManageLeague />} />
         <Route path="/admin" element={<PlatformAdmin />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
 
       {/* Unknown routes: send to welcome */}

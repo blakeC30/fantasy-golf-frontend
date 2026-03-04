@@ -21,13 +21,15 @@ import { useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useJoinByCode, useJoinPreview, useCancelMyRequest } from "../hooks/useLeague";
+import { FlagIcon } from "../components/FlagIcon";
 
 function GradientShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-green-900 to-green-800 flex flex-col items-center justify-center px-4 py-12">
       {/* Logo */}
-      <Link to="/" className="text-lg font-bold text-green-300 hover:text-white mb-10 tracking-tight transition-colors">
-        ⛳ Fantasy Golf
+      <Link to="/" className="inline-flex items-center gap-2 text-lg font-bold text-green-300 hover:text-white mb-10 tracking-tight transition-colors">
+        <FlagIcon className="w-5 h-5 flex-shrink-0" />
+        Fantasy Golf
       </Link>
       {children}
     </div>

@@ -182,6 +182,12 @@ export const leaguesApi = {
   update: (leagueId: string, data: { name?: string; description?: string | null; no_pick_penalty?: number }) =>
     api.patch<League>(`/leagues/${leagueId}`, data).then((r) => r.data),
 
+  leave: (leagueId: string) =>
+    api.delete(`/leagues/${leagueId}/members/me`).then((r) => r.data),
+
+  delete: (leagueId: string) =>
+    api.delete(`/leagues/${leagueId}`).then((r) => r.data),
+
   joinPreview: (inviteCode: string) =>
     api.get<LeagueJoinPreview>(`/leagues/join/${inviteCode}`).then((r) => r.data),
 

@@ -202,7 +202,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
             </svg>
           </button>
           {dropdownOpen && (
-            <div className="absolute right-0 mt-1 w-full sm:w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+            <div className="absolute right-0 mt-1 w-full sm:w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10 max-h-72 overflow-y-auto">
               {sorted.map((t) => (
                 <button
                   key={t.id}

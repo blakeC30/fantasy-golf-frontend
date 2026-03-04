@@ -108,6 +108,22 @@ export function useRemoveMember(leagueId: string) {
   });
 }
 
+export function useLeaveLeague() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (leagueId: string) => leaguesApi.leave(leagueId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["myLeagues"] }),
+  });
+}
+
+export function useDeleteLeague() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (leagueId: string) => leaguesApi.delete(leagueId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["myLeagues"] }),
+  });
+}
+
 export function useLeagueTournaments(leagueId: string) {
   return useQuery({
     queryKey: ["leagueTournaments", leagueId],

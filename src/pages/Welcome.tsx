@@ -7,6 +7,7 @@
 
 import { Link, Navigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import { FlagIcon } from "../components/FlagIcon";
 
 export function Welcome() {
   const token = useAuthStore((s) => s.token);
@@ -19,9 +20,7 @@ export function Welcome() {
       <header className="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-sm border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <span className="inline-flex items-center gap-2 text-lg font-bold text-green-900 tracking-tight">
-            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-              <path fillRule="evenodd" d="M3 2.25a.75.75 0 0 1 .75.75v.54l1.838-.46a9.75 9.75 0 0 1 6.725.738l.108.054A8.25 8.25 0 0 0 18 4.524l3.11-.732a.75.75 0 0 1 .917.81 47.784 47.784 0 0 0 .005 10.337.75.75 0 0 1-.574.812l-3.114.733a9.75 9.75 0 0 1-6.594-.77l-.108-.054a8.25 8.25 0 0 0-5.69-.625l-2.202.55V21a.75.75 0 0 1-1.5 0V3A.75.75 0 0 1 3 2.25Z" clipRule="evenodd" />
-            </svg>
+            <FlagIcon className="w-5 h-5 flex-shrink-0" />
             Fantasy Golf
           </span>
           <nav className="flex items-center gap-2">
@@ -361,7 +360,10 @@ export function Welcome() {
       {/* ── Footer ── */}
       <footer className="py-8 px-6 bg-green-950 border-t border-green-900">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-green-700">
-          <span className="font-semibold">⛳ Fantasy Golf</span>
+          <span className="inline-flex items-center gap-1.5 font-semibold text-green-500">
+            <FlagIcon className="w-4 h-4 flex-shrink-0" />
+            Fantasy Golf
+          </span>
           <span>© {new Date().getFullYear()} · Free to play</span>
           <div className="flex gap-4">
             <Link to="/register" className="hover:text-green-400 transition-colors">

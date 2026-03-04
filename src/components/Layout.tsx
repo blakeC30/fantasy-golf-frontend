@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { Link, Navigate, Outlet, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useLeagueMembers } from "../hooks/useLeague";
+import { FlagIcon } from "./FlagIcon";
 
 export function Layout() {
   const { token, user, bootstrapping, logout } = useAuth();
@@ -80,9 +81,7 @@ export function Layout() {
             to="/leagues"
             className="flex items-center gap-2 text-lg font-bold tracking-tight text-white hover:text-green-200 transition-colors"
           >
-            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-              <path fillRule="evenodd" d="M3 2.25a.75.75 0 0 1 .75.75v.54l1.838-.46a9.75 9.75 0 0 1 6.725.738l.108.054A8.25 8.25 0 0 0 18 4.524l3.11-.732a.75.75 0 0 1 .917.81 47.784 47.784 0 0 0 .005 10.337.75.75 0 0 1-.574.812l-3.114.733a9.75 9.75 0 0 1-6.594-.77l-.108-.054a8.25 8.25 0 0 0-5.69-.625l-2.202.55V21a.75.75 0 0 1-1.5 0V3A.75.75 0 0 1 3 2.25Z" clipRule="evenodd" />
-            </svg>
+            <FlagIcon className="w-5 h-5 flex-shrink-0" />
             Fantasy Golf
           </Link>
 
@@ -99,9 +98,12 @@ export function Layout() {
 
             {user?.is_platform_admin && navLink("/admin", "Admin")}
 
-            <span className="inline-flex items-center bg-green-800 text-green-100 text-sm px-3 py-1 rounded-full font-medium">
+            <Link
+              to="/settings"
+              className="inline-flex items-center bg-green-800 hover:bg-green-700 text-green-100 text-sm px-3 py-1 rounded-full font-medium transition-colors"
+            >
               {user?.display_name}
-            </span>
+            </Link>
             <button
               onClick={logout}
               className="text-sm text-green-300 hover:text-white border border-green-700 hover:border-green-400 px-3 py-1 rounded-lg transition-colors"
@@ -110,13 +112,24 @@ export function Layout() {
             </button>
           </nav>
 
-          {/* Mobile: sign out only (nav is in bottom tab bar) */}
-          <button
-            onClick={logout}
-            className="sm:hidden text-sm text-green-300 hover:text-white border border-green-700 hover:border-green-400 px-3 py-1 rounded-lg transition-colors"
-          >
-            Sign out
-          </button>
+          {/* Mobile: username pill + sign out (nav links are in bottom tab bar) */}
+          <div className="sm:hidden flex items-center gap-2">
+            <Link
+              to="/settings"
+              className="inline-flex items-center justify-center w-8 h-8 bg-green-800 hover:bg-green-700 text-green-100 rounded-full transition-colors"
+              aria-label="Account settings"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+              </svg>
+            </Link>
+            <button
+              onClick={logout}
+              className="text-sm text-green-300 hover:text-white border border-green-700 hover:border-green-400 px-3 py-1 rounded-lg transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -129,9 +142,7 @@ export function Layout() {
       <footer className={`bg-green-950 border-t border-green-900 py-6 ${leagueId ? "hidden sm:block" : ""}`}>
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-green-700">
           <span className="inline-flex items-center gap-1.5 font-semibold text-green-500">
-            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-              <path fillRule="evenodd" d="M3 2.25a.75.75 0 0 1 .75.75v.54l1.838-.46a9.75 9.75 0 0 1 6.725.738l.108.054A8.25 8.25 0 0 0 18 4.524l3.11-.732a.75.75 0 0 1 .917.81 47.784 47.784 0 0 0 .005 10.337.75.75 0 0 1-.574.812l-3.114.733a9.75 9.75 0 0 1-6.594-.77l-.108-.054a8.25 8.25 0 0 0-5.69-.625l-2.202.55V21a.75.75 0 0 1-1.5 0V3A.75.75 0 0 1 3 2.25Z" clipRule="evenodd" />
-            </svg>
+            <FlagIcon className="w-4 h-4 flex-shrink-0" />
             Fantasy Golf
           </span>
           <span>© {new Date().getFullYear()} · Free to play</span>

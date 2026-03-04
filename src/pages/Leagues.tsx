@@ -8,18 +8,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LeagueCard } from "../components/LeagueCard";
-import { useMyLeagues, useCreateLeague, useMyRequests, useCancelMyRequest } from "../hooks/useLeague";
+import { useMyLeagues, useMyRequests, useCancelMyRequest } from "../hooks/useLeague";
+import { FlagIcon } from "../components/FlagIcon";
 
 export function Leagues() {
   const navigate = useNavigate();
   const { data: leagues, isLoading } = useMyLeagues();
   const { data: pendingRequests } = useMyRequests();
-  const createLeague = useCreateLeague();
   const cancelRequest = useCancelMyRequest();
-
-  const [showCreate, setShowCreate] = useState(false);
-  const [createName, setCreateName] = useState("");
-  const [createError, setCreateError] = useState("");
 
   const [joinCode, setJoinCode] = useState("");
 
@@ -29,18 +25,6 @@ export function Leagues() {
     const raw = joinCode.trim();
     const code = raw.includes("/join/") ? raw.split("/join/").pop()! : raw;
     if (code) navigate(`/join/${code}`);
-  }
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setCreateError("");
-    try {
-      const league = await createLeague.mutateAsync({ name: createName });
-      navigate(`/leagues/${league.id}`);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setCreateError(msg ?? "Failed to create league.");
-    }
   }
 
   return (
@@ -64,7 +48,9 @@ export function Leagues() {
         </div>
       ) : (
         <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10 text-center space-y-3">
-          <div className="text-4xl">⛳</div>
+          <div className="w-12 h-12 rounded-2xl bg-green-100 text-green-700 flex items-center justify-center mx-auto">
+            <FlagIcon className="w-6 h-6" />
+          </div>
           <p className="font-semibold text-gray-700">No leagues yet</p>
           <p className="text-sm text-gray-400">Create a league below or join one with an invite link.</p>
         </div>
@@ -116,42 +102,12 @@ export function Leagues() {
             <p className="text-sm text-gray-500 mb-4 leading-relaxed">
               Start your own league and invite friends with a shareable link.
             </p>
-            {!showCreate ? (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors"
-              >
-                + New league
-              </button>
-            ) : (
-              <form onSubmit={handleCreate} className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="League name"
-                  required
-                  value={createName}
-                  onChange={(e) => setCreateName(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                {createError && <p className="text-xs text-red-600">{createError}</p>}
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={createLeague.isPending}
-                    className="flex-1 bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
-                  >
-                    {createLeague.isPending ? "Creating…" : "Create"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreate(false)}
-                    className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
+            <button
+              onClick={() => navigate("/leagues/new")}
+              className="w-full bg-green-800 hover:bg-green-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
+            >
+              Create league
+            </button>
           </div>
 
           {/* Join */}

@@ -99,6 +99,18 @@ Always use these exact key shapes — mismatches cause stale data:
 - `?next` param preserved through login → register cross-links so post-auth redirect lands correctly
 - `bootstrapping` state = true while silent session restore is in flight; show a loading state, don't redirect
 
+## Mobile-First Requirement
+
+**Every UI change must work well on both mobile and desktop.** The desktop layout should never change as a side effect of mobile work, and mobile must never be an afterthought.
+
+- Tailwind's breakpoint is `sm` = **640px** — use `sm:` to introduce desktop-only styles, not to hide mobile styles
+- The app uses a **fixed bottom tab bar** (`sm:hidden fixed bottom-0`) for league navigation on mobile, replacing the desktop header nav links (`hidden sm:flex`). Add `pb-24 sm:pb-8` to page content inside a league to clear it
+- The footer is hidden on mobile inside leagues (`hidden sm:block`) to avoid overlap with the tab bar
+- **Table columns**: hide low-priority columns on mobile with `hidden sm:table-cell` on both `<th>` and `<td>`
+- **Dropdowns and popovers**: use `w-full sm:w-auto` so they don't overflow the viewport on small screens
+- **Points / numeric values**: abbreviate with M/K notation to prevent overflow in tight grid cells
+- **Test at 390×844** (iPhone 14 Pro size) — if it looks cramped or broken at that size, fix it before finishing
+
 ## UI/UX Standard
 
 All UI work must be done as a **seasoned UI/UX engineer** would do it. Every screen should feel polished, intentional, and cohesive — not like a functional prototype. Apply these principles to every change:

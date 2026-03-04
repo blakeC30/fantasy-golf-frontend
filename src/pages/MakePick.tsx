@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { PickForm } from "../components/PickForm";
 import { GolferAvatar } from "../components/GolferAvatar";
+import { FlagIcon } from "../components/FlagIcon";
 import { useLeagueTournaments } from "../hooks/useLeague";
 import { useMyPicks, useSubmitPick, useTournamentField, useChangePick } from "../hooks/usePick";
 import { fmtTournamentName } from "../utils";
@@ -115,7 +116,9 @@ export function MakePick() {
           <h1 className="text-3xl font-bold text-gray-900">Make Your Pick</h1>
         </div>
         <div className="bg-gray-50 rounded-2xl border border-gray-200 p-16 text-center space-y-3">
-          <div className="text-4xl">⛳</div>
+          <div className="w-12 h-12 rounded-2xl bg-green-100 text-green-700 flex items-center justify-center mx-auto">
+            <FlagIcon className="w-6 h-6" />
+          </div>
           <p className="font-semibold text-gray-700">No upcoming tournaments</p>
           <p className="text-sm text-gray-400 max-w-xs mx-auto">
             There are no scheduled tournaments to pick for right now.
@@ -131,7 +134,7 @@ export function MakePick() {
     );
   }
 
-  if (!field) {
+  if (field === undefined) {
     return (
       <div className="max-w-lg mx-auto">
         <p className="text-gray-400">Loading tournament field…</p>
@@ -139,32 +142,61 @@ export function MakePick() {
     );
   }
 
-  return (
-    <div className="max-w-lg mx-auto space-y-6">
-      {/* Tournament context header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-green-900 to-green-700 text-white rounded-2xl px-6 py-5">
-        <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300 mb-1">
-          {existingPick ? "Change Your Pick" : "Make Your Pick"}
-        </p>
-        <p className="text-xl font-bold text-white">{fmtTournamentName(tournament.name)}</p>
-        <div className="flex items-center gap-3 mt-2 text-sm text-green-300">
-          <span>{formatDate(tournament.start_date)}–{formatDate(tournament.end_date)}</span>
-          {formatPurse(tournament.purse_usd) && (
-            <>
-              <span className="text-green-600">·</span>
-              <span>{formatPurse(tournament.purse_usd)}</span>
-            </>
-          )}
-          {tournament.effective_multiplier >= 2 && (
-            <>
-              <span className="text-green-600">·</span>
-              <span className="font-bold text-amber-300">{tournament.effective_multiplier}× MAJOR</span>
-            </>
-          )}
+  // Shared tournament context header — shown whenever a tournament is known.
+  const tournamentHeader = (
+    <div className="relative overflow-hidden bg-gradient-to-r from-green-900 to-green-700 text-white rounded-2xl px-6 py-5">
+      <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+      <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300 mb-1">
+        {existingPick ? "Change Your Pick" : "Make Your Pick"}
+      </p>
+      <p className="text-xl font-bold text-white">{fmtTournamentName(tournament.name)}</p>
+      <div className="flex items-center gap-3 mt-2 text-sm text-green-300">
+        <span>{formatDate(tournament.start_date)}–{formatDate(tournament.end_date)}</span>
+        {formatPurse(tournament.purse_usd) && (
+          <>
+            <span className="text-green-600">·</span>
+            <span>{formatPurse(tournament.purse_usd)}</span>
+          </>
+        )}
+        {tournament.effective_multiplier >= 2 && (
+          <>
+            <span className="text-green-600">·</span>
+            <span className="font-bold text-amber-300">{tournament.effective_multiplier}× MAJOR</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  if (field.length === 0) {
+    return (
+      <div className="max-w-lg mx-auto space-y-6">
+        {tournamentHeader}
+        <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10 text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          </div>
+          <p className="font-semibold text-gray-700">Field not yet available</p>
+          <p className="text-sm text-gray-400 max-w-xs mx-auto">
+            The player field for this tournament hasn't been announced yet.
+            Check back closer to the start date — picks will open automatically.
+          </p>
+          <Link
+            to={`/leagues/${leagueId}`}
+            className="inline-block text-sm font-semibold text-green-700 hover:text-green-900 mt-2 transition-colors"
+          >
+            Back to dashboard →
+          </Link>
         </div>
       </div>
+    );
+  }
 
+  return (
+    <div className="max-w-lg mx-auto space-y-6">
+      {tournamentHeader}
       <PickForm
         field={field}
         usedGolferIds={usedGolferIds}

@@ -7,6 +7,7 @@ import { useMyPicks } from "../hooks/usePick";
 import { useLeagueTournaments } from "../hooks/useLeague";
 import { TournamentBadge } from "../components/TournamentBadge";
 import { GolferAvatar } from "../components/GolferAvatar";
+import { FlagIcon } from "../components/FlagIcon";
 import { fmtTournamentName } from "../utils";
 
 function formatPoints(pts: number | null): string {
@@ -14,6 +15,16 @@ function formatPoints(pts: number | null): string {
   if (pts >= 1_000_000) return `$${(pts / 1_000_000).toFixed(2)}M`;
   if (pts >= 1_000) return `$${(pts / 1_000).toFixed(1)}K`;
   return `$${pts.toLocaleString()}`;
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400 mb-1">{label}</p>
+      <p className="text-xl font-bold text-gray-900 tabular-nums">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>}
+    </div>
+  );
 }
 
 export function MyPicks() {
@@ -34,6 +45,27 @@ export function MyPicks() {
     .sort((a, b) => a.tournament.start_date.localeCompare(b.tournament.start_date));
 
   const totalEarned = picks?.reduce((sum, p) => sum + (p.points_earned ?? 0), 0) ?? 0;
+
+  // Tournaments that are locked for picks: completed, in progress, or start date already passed.
+  const today = new Date().toISOString().slice(0, 10);
+  const completedTournaments = leagueTournaments?.filter(
+    (t) => t.status === "completed" || t.status === "in_progress" || t.start_date <= today
+  ) ?? [];
+  // Picks for which we have a final score
+  const scoredPicks = picks?.filter((p) => p.points_earned !== null) ?? [];
+  // Picks that earned money (made the cut)
+  const cutsMade = scoredPicks.filter((p) => p.points_earned! > 0);
+  // Picks submitted for completed tournaments (to measure submission rate)
+  const submittedForCompleted = picks?.filter((p) =>
+    completedTournaments.some((t) => t.id === p.tournament_id)
+  ) ?? [];
+  // Best single tournament
+  const bestPick = scoredPicks.reduce<(typeof scoredPicks)[0] | null>(
+    (best, p) => (best === null || p.points_earned! > best.points_earned! ? p : best),
+    null
+  );
+  const avgEarnings = scoredPicks.length > 0 ? totalEarned / scoredPicks.length : null;
+  const showStats = completedTournaments.length > 0;
 
   return (
     <div className="space-y-6">
@@ -68,6 +100,36 @@ export function MyPicks() {
           <p className="text-sm text-green-300 mt-2">
             {picks.length} pick{picks.length !== 1 ? "s" : ""} submitted
           </p>
+        </div>
+      )}
+
+      {/* Stats grid — only shown once at least one pick has been scored */}
+      {showStats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard
+            label="Pick Rate"
+            value={completedTournaments.length > 0
+              ? `${submittedForCompleted.length}/${completedTournaments.length}`
+              : `${picks?.length ?? 0}`}
+            sub={completedTournaments.length > 0
+              ? `${Math.round((submittedForCompleted.length / completedTournaments.length) * 100)}% of tournaments`
+              : "picks submitted"}
+          />
+          <StatCard
+            label="Cuts Made"
+            value={`${cutsMade.length}/${scoredPicks.length}`}
+            sub={scoredPicks.length > 0 ? `${Math.round((cutsMade.length / scoredPicks.length) * 100)}% cut rate` : "no scored picks yet"}
+          />
+          <StatCard
+            label="Best Pick"
+            value={formatPoints(bestPick?.points_earned ?? null)}
+            sub={bestPick?.golfer.name}
+          />
+          <StatCard
+            label="Avg per Start"
+            value={formatPoints(avgEarnings !== null ? Math.round(avgEarnings) : null)}
+            sub="per scored tournament"
+          />
         </div>
       )}
 
@@ -111,7 +173,9 @@ export function MyPicks() {
         </div>
       ) : (
         <div className="bg-gray-50 rounded-2xl border border-gray-200 p-16 text-center space-y-3">
-          <div className="text-4xl">⛳</div>
+          <div className="w-12 h-12 rounded-2xl bg-green-100 text-green-700 flex items-center justify-center mx-auto">
+            <FlagIcon className="w-6 h-6" />
+          </div>
           <p className="font-semibold text-gray-700">No picks yet this season</p>
           <p className="text-sm text-gray-400">Make your first pick for an upcoming tournament.</p>
           <Link

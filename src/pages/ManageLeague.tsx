@@ -6,10 +6,11 @@
  * Non-managers are redirected to the league dashboard.
  */
 
-import { useEffect, useRef, useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   useApproveRequest,
+  useDeleteLeague,
   useDenyRequest,
   useLeague,
   useLeagueMembers,
@@ -21,7 +22,7 @@ import {
   useUpdateMemberRole,
 } from "../hooks/useLeague";
 import { useTournaments } from "../hooks/usePick";
-import { fmtTournamentName } from "../utils";
+import { fmtTournamentName, isoWeekKey } from "../utils";
 import { useAuthStore } from "../store/authStore";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,7 @@ function SectionIcon({ children }: { children: React.ReactNode }) {
 export function ManageLeague() {
   const { leagueId } = useParams<{ leagueId: string }>();
   const currentUser = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
 
   const { data: league } = useLeague(leagueId!);
   const { data: members, isLoading } = useLeagueMembers(leagueId!);
@@ -48,6 +50,10 @@ export function ManageLeague() {
   const { data: pendingRequests } = usePendingRequests(leagueId!);
   const approveRequest = useApproveRequest(leagueId!);
   const denyRequest = useDenyRequest(leagueId!);
+
+  const deleteLeague = useDeleteLeague();
+  const [dangerStep, setDangerStep] = useState<"idle" | "editing" | "confirming">("idle");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const [linkCopied, setLinkCopied] = useState(false);
   const [membersEditing, setMembersEditing] = useState(false);
@@ -173,6 +179,18 @@ export function ManageLeague() {
     return acc;
   }, {});
 
+  // True when 2+ selected tournaments share an ISO week — blocks schedule save.
+  const hasScheduleConflicts = (() => {
+    const counts = new Map<string, number>();
+    for (const t of allTournaments ?? []) {
+      if (selectedIds.has(t.id)) {
+        const wk = isoWeekKey(t.start_date);
+        counts.set(wk, (counts.get(wk) ?? 0) + 1);
+      }
+    }
+    return [...counts.values()].some((c) => c > 1);
+  })();
+
   // Current user's role — redirect non-managers back to the league dashboard.
   const myMembership = members?.find((m) => m.user_id === currentUser?.id);
   const isManager = myMembership?.role === "manager";
@@ -208,20 +226,30 @@ export function ManageLeague() {
             Share this link to let people request to join your league.
             As league manager, you'll approve or deny requests below.
           </p>
-          <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-            <span className="text-sm text-gray-700 flex-1 truncate font-mono text-xs">
-              {window.location.origin}/join/{league.invite_code}
-            </span>
-            <button
-              onClick={copyInviteLink}
-              className={`flex-shrink-0 text-sm font-semibold px-4 py-1.5 rounded-lg border transition-colors ${
-                linkCopied
-                  ? "bg-green-50 border-green-300 text-green-700"
-                  : "border-gray-300 text-gray-700 hover:border-green-400 hover:text-green-700"
-              }`}
-            >
-              {linkCopied ? "✓ Copied!" : "Copy link"}
-            </button>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-200">
+            {/* Full invite URL */}
+            <div className="flex items-center gap-3 px-4 py-3">
+              <span className="text-gray-700 flex-1 truncate font-mono text-xs">
+                {window.location.origin}/join/{league.invite_code}
+              </span>
+              <button
+                onClick={copyInviteLink}
+                className={`flex-shrink-0 text-sm font-semibold px-4 py-1.5 rounded-lg border transition-colors ${
+                  linkCopied
+                    ? "bg-green-50 border-green-300 text-green-700"
+                    : "border-gray-300 text-gray-700 hover:border-green-400 hover:text-green-700"
+                }`}
+              >
+                {linkCopied ? "✓ Copied!" : "Copy link"}
+              </button>
+            </div>
+            {/* Bare join code */}
+            <div className="flex items-center gap-3 px-4 py-2.5">
+              <span className="text-xs text-gray-400">Join code</span>
+              <span className="font-mono text-sm font-semibold text-gray-800 tracking-wider">
+                {league.invite_code}
+              </span>
+            </div>
           </div>
         </section>
       )}
@@ -250,38 +278,40 @@ export function ManageLeague() {
           </div>
           <div className="bg-gray-50 rounded-xl border border-gray-100 divide-y divide-gray-100">
             {/* Name */}
-            <div className="flex items-center gap-4 px-4 py-3">
-              <span className="text-sm text-gray-500 w-36 flex-shrink-0">Name</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4 px-4 py-3">
+              <span className="text-sm text-gray-500 sm:w-36 sm:flex-shrink-0">Name</span>
               {settingsEditing ? (
                 <input
                   type="text"
                   value={settingsName}
                   onChange={(e) => setSettingsName(e.target.value)}
+                  maxLength={60}
                   className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-700"
                 />
               ) : (
-                <span className="text-sm font-medium text-gray-900">{league?.name}</span>
+                <span className="text-sm font-medium text-gray-900 break-words">{league?.name}</span>
               )}
             </div>
             {/* Description */}
-            <div className="flex items-start gap-4 px-4 py-3">
-              <span className="text-sm text-gray-500 w-36 flex-shrink-0 pt-1">Description</span>
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4 px-4 py-3">
+              <span className="text-sm text-gray-500 sm:w-36 sm:flex-shrink-0 sm:pt-1">Description</span>
               {settingsEditing ? (
                 <textarea
                   value={settingsDescription}
                   onChange={(e) => setSettingsDescription(e.target.value)}
                   rows={2}
+                  maxLength={200}
                   className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-700 resize-none"
                 />
               ) : (
-                <span className="text-sm text-gray-900">
+                <span className="text-sm text-gray-900 break-words">
                   {league?.description || <span className="text-gray-400">No description</span>}
                 </span>
               )}
             </div>
             {/* No-pick penalty */}
-            <div className="flex items-center gap-4 px-4 py-3">
-              <span className="text-sm text-gray-500 w-36 flex-shrink-0">No-pick penalty</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4 px-4 py-3">
+              <span className="text-sm text-gray-500 sm:w-36 sm:flex-shrink-0">No-pick penalty</span>
               {settingsEditing ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -510,85 +540,117 @@ export function ManageLeague() {
             <div className="space-y-6">
               {Object.entries(byMonth ?? {})
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([month, tournaments]) => (
-                  <div key={month}>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                      {new Date(month + "-15").toLocaleString("default", { month: "long", year: "numeric" })}
-                    </p>
-                    <div className="bg-gray-50 rounded-xl border border-gray-100 divide-y divide-gray-100">
-                      {[...tournaments]
-                        .sort((a, b) => a.start_date.localeCompare(b.start_date))
-                        .map((t) => {
-                          const checked = selectedIds.has(t.id);
-                          const isPast = t.status === "completed";
-                          const effectiveMultiplier = multipliers[t.id] ?? t.multiplier;
-                          return (
-                            <div
-                              key={t.id}
-                              className={`flex items-center gap-3 px-4 py-3 ${
-                                scheduleEditing ? "cursor-pointer hover:bg-gray-100" : "cursor-default"
-                              } ${isPast ? "opacity-50" : ""}`}
-                              onClick={() => scheduleEditing && toggleTournament(t.id)}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {}}
-                                disabled={!scheduleEditing}
-                                className="accent-green-800 h-4 w-4 flex-shrink-0 disabled:opacity-60 pointer-events-none"
-                              />
-                              <span className="flex-1 text-sm text-gray-900">{fmtTournamentName(t.name)}</span>
+                .map(([month, monthTournaments]) => {
+                  // Group by ISO week within this month to detect same-week conflicts.
+                  const weekEntries = Object.entries(
+                    [...monthTournaments]
+                      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+                      .reduce<Record<string, typeof monthTournaments>>((acc, t) => {
+                        const wk = isoWeekKey(t.start_date);
+                        (acc[wk] ??= []).push(t);
+                        return acc;
+                      }, {})
+                  ).sort(([a], [b]) => a.localeCompare(b));
 
-                              {/* Multiplier — picker when editing + checked, badge otherwise */}
-                              {checked && scheduleEditing ? (
-                                <div
-                                  className="flex items-center gap-1 flex-shrink-0"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {[1.0, 1.5, 2.0].map((preset) => (
-                                    <button
-                                      key={preset}
-                                      type="button"
-                                      onClick={() => setMultiplierFor(t.id, preset)}
-                                      className={`text-xs px-2 py-0.5 rounded font-semibold transition-colors ${
-                                        effectiveMultiplier === preset
-                                          ? preset >= 2
-                                            ? "bg-amber-500 text-white"
-                                            : preset === 1.5
-                                            ? "bg-blue-600 text-white"
-                                            : "bg-green-800 text-white"
-                                          : "bg-gray-200 text-gray-500 hover:bg-gray-300"
-                                      }`}
-                                    >
-                                      {preset === 1.0 ? "1×" : preset === 1.5 ? "1.5×" : "2×"}
-                                    </button>
-                                  ))}
+                  return (
+                    <div key={month}>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                        {new Date(month + "-15").toLocaleString("default", { month: "long", year: "numeric" })}
+                      </p>
+                      <div className="bg-gray-50 rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+                        {weekEntries.map(([weekKey, weekTournaments]) => {
+                          const selectedInWeek = weekTournaments.filter((t) => selectedIds.has(t.id));
+                          const hasWeekConflict = selectedInWeek.length > 1;
+                          return (
+                            <Fragment key={weekKey}>
+                              {weekTournaments.map((t) => {
+                                const checked = selectedIds.has(t.id);
+                                const isPast = t.status === "completed";
+                                const effectiveMultiplier = multipliers[t.id] ?? t.multiplier;
+                                return (
+                                  <div
+                                    key={t.id}
+                                    className={`flex items-center gap-3 px-4 py-3 ${
+                                      scheduleEditing ? "cursor-pointer hover:bg-gray-100" : "cursor-default"
+                                    } ${isPast ? "opacity-50" : ""} ${hasWeekConflict && checked ? "bg-amber-50" : ""}`}
+                                    onClick={() => scheduleEditing && toggleTournament(t.id)}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => {}}
+                                      disabled={!scheduleEditing}
+                                      className="accent-green-800 h-4 w-4 flex-shrink-0 disabled:opacity-60 pointer-events-none"
+                                    />
+                                    <span className="flex-1 text-sm text-gray-900">{fmtTournamentName(t.name)}</span>
+
+                                    {/* Multiplier — picker when editing + checked, badge otherwise */}
+                                    {checked && scheduleEditing ? (
+                                      <div
+                                        className="flex items-center gap-1 flex-shrink-0"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {[1.0, 1.5, 2.0].map((preset) => (
+                                          <button
+                                            key={preset}
+                                            type="button"
+                                            onClick={() => setMultiplierFor(t.id, preset)}
+                                            className={`text-xs px-2 py-0.5 rounded font-semibold transition-colors ${
+                                              effectiveMultiplier === preset
+                                                ? preset >= 2
+                                                  ? "bg-amber-500 text-white"
+                                                  : preset === 1.5
+                                                  ? "bg-blue-600 text-white"
+                                                  : "bg-green-800 text-white"
+                                                : "bg-gray-200 text-gray-500 hover:bg-gray-300"
+                                            }`}
+                                          >
+                                            {preset === 1.0 ? "1×" : preset === 1.5 ? "1.5×" : "2×"}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    ) : checked && effectiveMultiplier !== 1.0 ? (
+                                      <span
+                                        className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                          effectiveMultiplier >= 2
+                                            ? "bg-amber-100 text-amber-700"
+                                            : "bg-blue-50 text-blue-700"
+                                        }`}
+                                      >
+                                        {effectiveMultiplier}×
+                                      </span>
+                                    ) : null}
+                                    <span className="hidden sm:block text-xs text-gray-400 flex-shrink-0">{t.start_date}</span>
+                                  </div>
+                                );
+                              })}
+                              {hasWeekConflict && (
+                                <div className="flex items-start gap-2 px-4 py-2.5 bg-amber-50 text-amber-800 text-xs">
+                                  <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                                  </svg>
+                                  <span>
+                                    Only one tournament per week is allowed. Uncheck either{" "}
+                                    <strong>{fmtTournamentName(selectedInWeek[0].name)}</strong>
+                                    {" "}or{" "}
+                                    <strong>{fmtTournamentName(selectedInWeek[1].name)}</strong>.
+                                  </span>
                                 </div>
-                              ) : checked && effectiveMultiplier !== 1.0 ? (
-                                <span
-                                  className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                    effectiveMultiplier >= 2
-                                      ? "bg-amber-100 text-amber-700"
-                                      : "bg-blue-50 text-blue-700"
-                                  }`}
-                                >
-                                  {effectiveMultiplier}×
-                                </span>
-                              ) : null}
-                              <span className="hidden sm:block text-xs text-gray-400 flex-shrink-0">{t.start_date}</span>
-                            </div>
+                              )}
+                            </Fragment>
                           );
                         })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           )}
           {scheduleEditing && (
             <div className="flex items-center gap-3 pt-2">
               <button
                 onClick={handleSaveSchedule}
-                disabled={updateSchedule.isPending}
+                disabled={updateSchedule.isPending || hasScheduleConflicts}
                 className="bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
               >
                 {updateSchedule.isPending ? "Saving…" : "Save Schedule"}
@@ -599,6 +661,90 @@ export function ManageLeague() {
               >
                 Cancel
               </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Danger Zone — manager only */}
+      {isManager && (
+        <section className="bg-white rounded-2xl border border-red-200 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-red-50 text-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+              </div>
+              <h2 className="text-base font-bold text-gray-900">Danger Zone</h2>
+            </div>
+            {dangerStep === "idle" && (
+              <button
+                onClick={() => setDangerStep("editing")}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Edit
+              </button>
+            )}
+            {dangerStep === "editing" && (
+              <button
+                onClick={() => setDangerStep("idle")}
+                className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors"
+              >
+                Done
+              </button>
+            )}
+          </div>
+
+          <p className="text-sm text-gray-500">
+            Permanently delete this league and all of its data — members, picks, and standings.
+            This action cannot be undone.
+          </p>
+
+          {dangerStep === "editing" && (
+            <button
+              onClick={() => setDangerStep("confirming")}
+              className="text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl transition-colors"
+            >
+              Delete League
+            </button>
+          )}
+
+          {dangerStep === "confirming" && (
+            <div className="space-y-3 bg-red-50 border border-red-200 rounded-xl p-4">
+              {deleteLeague.error && (
+                <p className="text-sm text-red-700">Failed to delete league. Please try again.</p>
+              )}
+              <p className="text-sm text-gray-700">
+                Type <span className="font-semibold">{league?.name}</span> to confirm deletion.
+              </p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={league?.name}
+                className="w-full border border-red-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-shadow"
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    deleteLeague.mutate(leagueId!, {
+                      onSuccess: () => navigate("/leagues"),
+                    });
+                  }}
+                  disabled={deleteConfirmText !== league?.name || deleteLeague.isPending}
+                  className="text-sm font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white px-4 py-2 rounded-xl transition-colors"
+                >
+                  {deleteLeague.isPending ? "Deleting…" : "Confirm Delete"}
+                </button>
+                <button
+                  onClick={() => { setDangerStep("editing"); setDeleteConfirmText(""); deleteLeague.reset(); }}
+                  disabled={deleteLeague.isPending}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
         </section>
