@@ -6,18 +6,39 @@
  * Shows a loading screen while the refresh attempt is still in flight.
  */
 
-import { Link, Navigate, Outlet, useParams } from "react-router-dom";
+import { Link, Navigate, Outlet, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useLeagueMembers } from "../hooks/useLeague";
 
 export function Layout() {
   const { token, user, bootstrapping, logout } = useAuth();
   const { leagueId } = useParams<{ leagueId?: string }>();
+  const location = useLocation();
 
   const { data: leagueMembers } = useLeagueMembers(leagueId ?? "");
   const isManager = leagueMembers?.some(
     (m) => m.user_id === user?.id && m.role === "manager"
   ) ?? false;
+
+  function isActive(path: string): boolean {
+    return location.pathname === path || location.pathname.startsWith(path + "/");
+  }
+
+  function navLink(to: string, label: string, exact = false) {
+    const active = exact ? location.pathname === to : isActive(to);
+    return (
+      <Link
+        to={to}
+        className={`text-sm font-medium transition-colors pb-0.5 ${
+          active
+            ? "text-white border-b-2 border-green-300"
+            : "text-green-200 hover:text-white"
+        }`}
+      >
+        {label}
+      </Link>
+    );
+  }
 
   if (bootstrapping) {
     return (
@@ -35,43 +56,32 @@ export function Layout() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top nav */}
       <header className="bg-green-900 text-white shadow-md">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/leagues" className="text-xl font-bold tracking-tight hover:text-green-200">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+          <Link
+            to="/leagues"
+            className="text-lg font-bold tracking-tight text-white hover:text-green-200 transition-colors"
+          >
             ⛳ Fantasy Golf
           </Link>
 
-          <nav className="flex items-center gap-5 text-sm font-medium">
+          <nav className="flex items-center gap-5">
             {leagueId && (
               <>
-                <Link to={`/leagues/${leagueId}`} className="hover:text-green-200">
-                  Dashboard
-                </Link>
-                <Link to={`/leagues/${leagueId}/picks`} className="hover:text-green-200">
-                  My Picks
-                </Link>
-                <Link to={`/leagues/${leagueId}/leaderboard`} className="hover:text-green-200">
-                  Leaderboard
-                </Link>
-                {isManager && (
-                  <Link to={`/leagues/${leagueId}/manage`} className="hover:text-green-200">
-                    Manage League
-                  </Link>
-                )}
+                {navLink(`/leagues/${leagueId}`, "Dashboard", true)}
+                {navLink(`/leagues/${leagueId}/picks`, "My Picks")}
+                {navLink(`/leagues/${leagueId}/leaderboard`, "Leaderboard")}
+                {isManager && navLink(`/leagues/${leagueId}/manage`, "Manage")}
               </>
             )}
 
-            {user?.is_platform_admin && (
-              <Link to="/admin" className="hover:text-green-200">
-                Admin
-              </Link>
-            )}
+            {user?.is_platform_admin && navLink("/admin", "Admin")}
 
-            <span className="text-green-300 hidden sm:inline">
+            <span className="hidden sm:inline-flex items-center bg-green-800 text-green-100 text-sm px-3 py-1 rounded-full font-medium">
               {user?.display_name}
             </span>
             <button
               onClick={logout}
-              className="bg-green-700 hover:bg-green-600 px-3 py-1 rounded text-sm"
+              className="text-sm text-green-300 hover:text-white border border-green-700 hover:border-green-400 px-3 py-1 rounded-lg transition-colors"
             >
               Sign out
             </button>
@@ -84,8 +94,14 @@ export function Layout() {
         <Outlet />
       </main>
 
-      <footer className="text-center text-xs text-gray-400 py-4">
-        Fantasy Golf — {new Date().getFullYear()}
+      <footer className="bg-green-950 border-t border-green-900 py-6">
+        <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-green-700">
+          <span className="font-semibold text-green-500">⛳ Fantasy Golf</span>
+          <span>© {new Date().getFullYear()} · Free to play</span>
+          <Link to="/leagues" className="hover:text-green-400 transition-colors">
+            My Leagues
+          </Link>
+        </div>
       </footer>
     </div>
   );

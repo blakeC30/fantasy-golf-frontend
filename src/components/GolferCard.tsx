@@ -4,6 +4,7 @@
  */
 
 import type { Golfer } from "../api/endpoints";
+import { GolferAvatar } from "./GolferAvatar";
 
 interface Props {
   golfer: Golfer;
@@ -32,10 +33,12 @@ export function GolferCard({ golfer, selected, alreadyUsed, onClick }: Props) {
         if (!alreadyUsed && (e.key === "Enter" || e.key === " ")) onClick?.();
       }}
     >
-      {/* World ranking badge */}
-      <div className="w-8 h-8 rounded-full bg-green-800 text-white flex items-center justify-center text-xs font-bold shrink-0">
-        {golfer.world_ranking ?? "—"}
-      </div>
+      <GolferAvatar
+        pgaTourId={golfer.pga_tour_id}
+        name={golfer.name}
+        className="w-10 h-10"
+        fallback={golfer.world_ranking ?? "—"}
+      />
 
       <div className="flex-1 min-w-0">
         <p className="font-medium text-gray-900 truncate">{golfer.name}</p>

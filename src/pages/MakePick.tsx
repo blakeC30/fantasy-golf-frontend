@@ -3,14 +3,31 @@
  */
 
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { PickForm } from "../components/PickForm";
+import { GolferAvatar } from "../components/GolferAvatar";
 import { useLeagueTournaments } from "../hooks/useLeague";
 import { useMyPicks, useSubmitPick, useTournamentField, useChangePick } from "../hooks/usePick";
+import { fmtTournamentName } from "../utils";
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatPurse(purse: number | null): string | null {
+  if (purse === null) return null;
+  if (purse >= 1_000_000) {
+    const m = purse / 1_000_000;
+    return `$${m % 1 === 0 ? m : m.toFixed(1)}M purse`;
+  }
+  return `$${Math.round(purse / 1000)}K purse`;
+}
 
 export function MakePick() {
   const { leagueId } = useParams<{ leagueId: string }>();
   const [error, setError] = useState("");
+  const [confirmed, setConfirmed] = useState<{ golferName: string; pgaTourId: string; changed: boolean } | null>(null);
 
   const { data: leagueTournaments } = useLeagueTournaments(leagueId!);
   const { data: myPicks } = useMyPicks(leagueId!);
@@ -31,35 +48,124 @@ export function MakePick() {
 
   async function handleSubmit(golferId: string) {
     setError("");
+    const wasChange = !!existingPick;
     try {
       if (existingPick) {
         await changePick.mutateAsync({ pickId: existingPick.id, golfer_id: golferId });
       } else {
         await submitPick.mutateAsync({ tournament_id: tournament!.id, golfer_id: golferId });
       }
+      const golfer = field?.find((g) => g.id === golferId);
+      setConfirmed({ golferName: golfer?.name ?? "your golfer", pgaTourId: golfer?.pga_tour_id ?? "", changed: wasChange });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(msg ?? "Failed to save pick. Please try again.");
     }
   }
 
+  if (confirmed) {
+    return (
+      <div className="max-w-lg mx-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center space-y-5">
+          <div className="relative w-20 h-20 mx-auto">
+            <GolferAvatar
+              pgaTourId={confirmed.pgaTourId}
+              name={confirmed.golferName}
+              className="w-20 h-20"
+            />
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
+              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">
+              {confirmed.changed ? "Pick Updated" : "Pick Submitted"}
+            </p>
+            <h1 className="text-2xl font-bold text-gray-900">{confirmed.golferName}</h1>
+            {tournament && (
+              <p className="text-sm text-gray-500">{fmtTournamentName(tournament.name)}</p>
+            )}
+          </div>
+          <Link
+            to={`/leagues/${leagueId}/picks`}
+            className="inline-block w-full bg-green-800 hover:bg-green-700 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
+          >
+            View My Picks
+          </Link>
+          <Link
+            to={`/leagues/${leagueId}`}
+            className="inline-block text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Back to dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!tournament) {
     return (
-      <div className="text-center py-16 text-gray-400">
-        No upcoming tournaments to pick for right now.
+      <div className="max-w-lg mx-auto">
+        <div className="space-y-1 mb-8">
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">
+            Pick Golfer
+          </p>
+          <h1 className="text-3xl font-bold text-gray-900">Make Your Pick</h1>
+        </div>
+        <div className="bg-gray-50 rounded-2xl border border-gray-200 p-16 text-center space-y-3">
+          <div className="text-4xl">⛳</div>
+          <p className="font-semibold text-gray-700">No upcoming tournaments</p>
+          <p className="text-sm text-gray-400 max-w-xs mx-auto">
+            There are no scheduled tournaments to pick for right now.
+          </p>
+          <Link
+            to={`/leagues/${leagueId}`}
+            className="inline-block text-sm font-semibold text-green-700 hover:text-green-900 mt-2 transition-colors"
+          >
+            Back to dashboard →
+          </Link>
+        </div>
       </div>
     );
   }
 
   if (!field) {
-    return <p className="text-gray-400">Loading tournament field…</p>;
+    return (
+      <div className="max-w-lg mx-auto">
+        <p className="text-gray-400">Loading tournament field…</p>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Make Your Pick</h1>
+    <div className="max-w-lg mx-auto space-y-6">
+      {/* Tournament context header */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-green-900 to-green-700 text-white rounded-2xl px-6 py-5">
+        <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300 mb-1">
+          {existingPick ? "Change Your Pick" : "Make Your Pick"}
+        </p>
+        <p className="text-xl font-bold text-white">{fmtTournamentName(tournament.name)}</p>
+        <div className="flex items-center gap-3 mt-2 text-sm text-green-300">
+          <span>{formatDate(tournament.start_date)}–{formatDate(tournament.end_date)}</span>
+          {formatPurse(tournament.purse_usd) && (
+            <>
+              <span className="text-green-600">·</span>
+              <span>{formatPurse(tournament.purse_usd)}</span>
+            </>
+          )}
+          {tournament.effective_multiplier >= 2 && (
+            <>
+              <span className="text-green-600">·</span>
+              <span className="font-bold text-amber-300">{tournament.effective_multiplier}× MAJOR</span>
+            </>
+          )}
+        </div>
+      </div>
+
       <PickForm
-        tournament={tournament}
         field={field}
         usedGolferIds={usedGolferIds}
         existingPick={existingPick}

@@ -99,14 +99,29 @@ Always use these exact key shapes — mismatches cause stale data:
 - `?next` param preserved through login → register cross-links so post-auth redirect lands correctly
 - `bootstrapping` state = true while silent session restore is in flight; show a loading state, don't redirect
 
+## UI/UX Standard
+
+All UI work must be done as a **seasoned UI/UX engineer** would do it. Every screen should feel polished, intentional, and cohesive — not like a functional prototype. Apply these principles to every change:
+
+- **Visual hierarchy**: use eyebrow labels (`text-xs font-bold uppercase tracking-[0.15em] text-green-700`), large headings (`text-3xl font-bold`), and subdued supporting text to guide the eye
+- **Breathing room**: generous padding (`p-6`, `p-8`, `p-10`), section spacing (`space-y-8`), never cramped layouts
+- **Rounded and soft**: `rounded-2xl` for cards and containers, `rounded-xl` for buttons and inputs
+- **Depth and surface**: `shadow-sm` on cards, `shadow-lg` on elevated modals/confirmations, `border border-gray-200` for subtle separation
+- **Gradient accents**: dark tournament/hero bands use `bg-gradient-to-r from-green-900 to-green-700` with white text; season-total cards use `bg-gradient-to-br from-green-900 via-green-800 to-green-700`
+- **Empty states**: never just plain text — use a centered icon + heading + subtext + action link inside a `bg-gray-50 rounded-2xl p-16 text-center` container
+- **Buttons**: primary = `bg-green-800 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-xl shadow-sm`; secondary/ghost = `border border-gray-300 hover:border-green-400 text-gray-700 rounded-xl`; destructive = `text-red-500 hover:text-red-700`
+- **Section icon badges**: precede headings with `<div className="w-8 h-8 bg-green-50 text-green-700 rounded-lg flex items-center justify-center">` containing a small SVG
+- **Overlay elements**: rings/outlines on focused/selected items need `p-1` buffer on the scroll container to avoid clipping
+
 ## Styling Conventions
 
 - Color scheme: `green-800` (primary actions), `green-700` (hover), `green-50`/`green-100` (highlights), amber for warnings/majors
-- Cards: `bg-white border border-gray-200 rounded-xl p-5` (or `p-8` for centered full-page cards)
-- Primary button: `bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white font-semibold py-2 rounded-lg`
+- Cards: `bg-white border border-gray-200 rounded-2xl p-6` (standard), `rounded-2xl p-10` (centered full-page cards)
+- Primary button: `bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white font-semibold py-3 px-6 rounded-xl shadow-sm`
 - Text input: `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500`
 - Golf-style ranking: show `T2` for ties, no `#` prefix, first place as `1` (never `T1`)
 - Use `tabular-nums` on numeric table columns for aligned digits
+- Dates on dark backgrounds: `text-white/70` (not `text-green-300`, which is hard to read)
 
 ## Key Patterns
 

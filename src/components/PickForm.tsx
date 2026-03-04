@@ -6,13 +6,10 @@
  */
 
 import { useState } from "react";
-import type { Golfer, Pick, Tournament } from "../api/endpoints";
+import type { Golfer, Pick } from "../api/endpoints";
 import { GolferCard } from "./GolferCard";
-import { TournamentBadge } from "./TournamentBadge";
-import { fmtTournamentName } from "../utils";
 
 interface Props {
-  tournament: Tournament & { effective_multiplier?: number };
   field: Golfer[];
   usedGolferIds: Set<string>; // golfer IDs already picked this season
   existingPick?: Pick; // if the user already has a pick for this tournament
@@ -22,7 +19,6 @@ interface Props {
 }
 
 export function PickForm({
-  tournament,
   field,
   usedGolferIds,
   existingPick,
@@ -35,9 +31,9 @@ export function PickForm({
   );
   const [search, setSearch] = useState("");
 
-  const filtered = field.filter((g) =>
-    g.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = field
+    .filter((g) => g.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,24 +43,6 @@ export function PickForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Tournament header */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex items-center gap-2 flex-wrap mb-1">
-          <h2 className="text-lg font-semibold text-gray-900">{fmtTournamentName(tournament.name)}</h2>
-          {(tournament.effective_multiplier ?? 0) >= 2 && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-              {tournament.effective_multiplier}× MAJOR
-            </span>
-          )}
-          {(tournament.effective_multiplier ?? 0) > 1 && (tournament.effective_multiplier ?? 0) < 2 && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-              {tournament.effective_multiplier}× FEATURED
-            </span>
-          )}
-        </div>
-        <TournamentBadge tournament={tournament} showDates />
-      </div>
-
       {/* Search */}
       <input
         type="text"
@@ -75,7 +53,7 @@ export function PickForm({
       />
 
       {/* Golfer list */}
-      <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-[480px] overflow-y-auto p-1">
         {filtered.length === 0 && (
           <p className="text-center text-gray-400 py-8">No golfers match your search.</p>
         )}

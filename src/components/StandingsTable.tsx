@@ -33,13 +33,13 @@ export function StandingsTable({ rows, limit }: Props) {
   const displayed = limit ? rows.slice(0, limit) : rows;
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
+    <div className="overflow-x-auto rounded-xl border border-gray-200">
       <table className="min-w-full text-sm">
         <thead className="bg-green-900 text-white">
           <tr>
-            <th className="px-4 py-2 text-left w-12">Pos</th>
-            <th className="px-4 py-2 text-left">Player</th>
-            <th className="px-4 py-2 text-right">Points</th>
+            <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold w-12">Pos</th>
+            <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Player</th>
+            <th className="px-4 py-2.5 text-right text-xs uppercase tracking-wider font-semibold">Points</th>
           </tr>
         </thead>
         <tbody>
@@ -49,17 +49,21 @@ export function StandingsTable({ rows, limit }: Props) {
               <tr
                 key={row.user_id}
                 className={`border-t border-gray-100 ${
-                  isMe ? "bg-green-50 font-semibold" : i % 2 === 0 ? "bg-white" : "bg-gray-50"
+                  isMe
+                    ? "bg-green-50 border-l-2 border-l-green-400"
+                    : i % 2 === 0
+                    ? "bg-white"
+                    : "bg-gray-50"
                 }`}
               >
-                <td className={`px-4 py-2 tabular-nums ${rankClass(row.rank)}`}>
+                <td className={`px-4 py-3 tabular-nums ${rankClass(row.rank)}`}>
                   {formatRank(row.rank, row.is_tied)}
                 </td>
-                <td className="px-4 py-2">
+                <td className={`px-4 py-3 ${isMe ? "font-semibold" : ""}`}>
                   {row.display_name}
-                  {isMe && <span className="ml-1 text-green-700 text-xs">(you)</span>}
+                  {isMe && <span className="ml-1.5 text-green-700 text-xs font-normal">(you)</span>}
                 </td>
-                <td className="px-4 py-2 text-right tabular-nums">
+                <td className="px-4 py-3 text-right tabular-nums font-medium">
                   {formatPoints(row.total_points)}
                 </td>
               </tr>
@@ -67,7 +71,7 @@ export function StandingsTable({ rows, limit }: Props) {
           })}
           {displayed.length === 0 && (
             <tr>
-              <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+              <td colSpan={3} className="px-4 py-8 text-center text-gray-400 text-sm">
                 No standings yet — picks will appear after tournaments complete.
               </td>
             </tr>

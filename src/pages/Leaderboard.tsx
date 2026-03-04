@@ -10,7 +10,7 @@
  *                  best/worst result (completed only)
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useStandings, useTournamentPicksSummary } from "../hooks/usePick";
 import { useLeagueTournaments } from "../hooks/useLeague";
@@ -126,7 +126,7 @@ interface StatCardProps {
 
 function StatCard({ label, value, sub, color = "text-gray-900" }: StatCardProps) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 space-y-0.5">
+    <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 space-y-0.5">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
       <p className={`text-lg font-bold ${color}`}>{value}</p>
       {sub && <p className="text-xs text-gray-400">{sub}</p>}
@@ -142,6 +142,18 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const { data: leagueTournaments } = useLeagueTournaments(leagueId);
   const [selectedId, setSelectedId] = useState<string>("");
   const [view, setView] = useState<"table" | "chart">("table");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Sort: in_progress first, then completed desc, then scheduled asc
   const sorted = [...(leagueTournaments ?? [])].sort((a, b) => {
@@ -170,33 +182,55 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const uniquePick = summary?.picks_by_golfer.filter((g) => g.pick_count === 1).length ?? 0;
 
   return (
-    <div className="space-y-4">
+    <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-lg font-semibold text-gray-900">Tournament Breakdown</h2>
-        <div className="relative">
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="appearance-none text-sm border border-gray-300 rounded-lg px-3 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-green-700 bg-white text-gray-700 cursor-pointer"
+        <h2 className="text-lg font-bold text-gray-900">Tournament Breakdown</h2>
+        <div ref={dropdownRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setDropdownOpen((o) => !o)}
+            className="flex items-center gap-2 text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-700 transition-colors min-w-[220px]"
           >
-            <option value="">Select a tournament…</option>
-            {sorted.map((t) => (
-              <option key={t.id} value={t.id}>
-                {fmtTournamentName(t.name)}
-                {t.status === "in_progress" ? " · Live" : t.status === "completed" ? " · Final" : " · Upcoming"}
-              </option>
-            ))}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span className="flex-1 text-left truncate">
+              {selectedTournament ? fmtTournamentName(selectedTournament.name) : "Select a tournament…"}
+            </span>
+            <svg
+              className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-          </div>
+          </button>
+          {dropdownOpen && (
+            <div className="absolute right-0 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+              {sorted.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { setSelectedId(t.id); setDropdownOpen(false); }}
+                  className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between gap-3 transition-colors ${
+                    t.id === selectedId ? "bg-green-50 text-green-900" : "hover:bg-gray-50 text-gray-700"
+                  }`}
+                >
+                  <span className="truncate">{fmtTournamentName(t.name)}</span>
+                  <span className={`text-xs shrink-0 font-medium px-2 py-0.5 rounded-full ${
+                    t.status === "in_progress"
+                      ? "bg-green-100 text-green-700"
+                      : t.status === "completed"
+                      ? "bg-gray-100 text-gray-500"
+                      : "bg-blue-50 text-blue-600"
+                  }`}>
+                    {t.status === "in_progress" ? "Live" : t.status === "completed" ? "Final" : "Upcoming"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {!selectedId && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
           Select a tournament above to see pick breakdown.
         </div>
       )}
@@ -249,7 +283,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
           </div>
 
           {/* View toggle */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+          <div className="flex items-center gap-1 bg-gray-200 rounded-lg p-1 w-fit">
             <button
               onClick={() => setView("table")}
               className={`text-xs font-semibold px-3 py-1 rounded-md transition-colors ${
@@ -270,14 +304,14 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
 
           {/* Table view */}
           {view === "table" && (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="min-w-full text-sm">
                 <thead className="bg-green-900 text-white">
                   <tr>
-                    <th className="px-4 py-2 text-left">#</th>
-                    <th className="px-4 py-2 text-left">Golfer</th>
-                    <th className="px-4 py-2 text-left">Picked by</th>
-                    {isCompleted && <th className="px-4 py-2 text-right">Points</th>}
+                    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">#</th>
+                    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Golfer</th>
+                    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Picked by</th>
+                    {isCompleted && <th className="px-4 py-2.5 text-right text-xs uppercase tracking-wider font-semibold">Points</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -286,9 +320,9 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                       key={g.golfer_id}
                       className={`border-t border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
                     >
-                      <td className="px-4 py-2 text-gray-400 tabular-nums">{g.pick_count}</td>
-                      <td className="px-4 py-2 font-medium text-gray-900">{g.golfer_name}</td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-3 text-gray-400 tabular-nums">{g.pick_count}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{g.golfer_name}</td>
+                      <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {g.pickers.map((p) => (
                             <span
@@ -301,7 +335,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                         </div>
                       </td>
                       {isCompleted && (
-                        <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
                           {formatPoints(g.pickers[0]?.points_earned ?? null)}
                         </td>
                       )}
@@ -309,9 +343,9 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                   ))}
                   {summary.no_pick_members.length > 0 && (
                     <tr className="border-t border-gray-100 bg-red-50">
-                      <td className="px-4 py-2 text-red-400 tabular-nums">0</td>
-                      <td className="px-4 py-2 text-gray-400 italic">No pick</td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-3 text-red-400 tabular-nums">0</td>
+                      <td className="px-4 py-3 text-gray-400 italic">No pick</td>
+                      <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {summary.no_pick_members.map((m) => (
                             <span
@@ -368,24 +402,26 @@ export function Leaderboard() {
   const { data: standings, isLoading } = useStandings(leagueId!);
 
   return (
-    <div className="space-y-10">
-      {/* Season standings */}
-      <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leaderboard</h1>
-          {standings && (
-            <p className="text-sm text-gray-500 mt-0.5">{standings.season_year} Season</p>
-          )}
-        </div>
-
-        {isLoading ? (
-          <p className="text-gray-400">Loading…</p>
-        ) : standings ? (
-          <StandingsTable rows={standings.rows} />
-        ) : (
-          <p className="text-gray-400">No standings available yet.</p>
+    <div className="space-y-8">
+      {/* Page header */}
+      <div className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">
+          Season Standings
+        </p>
+        <h1 className="text-3xl font-bold text-gray-900">Leaderboard</h1>
+        {standings && (
+          <p className="text-sm text-gray-500">{standings.season_year} Season</p>
         )}
       </div>
+
+      {/* Season standings */}
+      {isLoading ? (
+        <p className="text-gray-400">Loading…</p>
+      ) : standings ? (
+        <StandingsTable rows={standings.rows} />
+      ) : (
+        <p className="text-gray-400">No standings available yet.</p>
+      )}
 
       {/* Pick breakdown */}
       <TournamentPicksSection leagueId={leagueId!} />

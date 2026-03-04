@@ -64,7 +64,7 @@ export function LeagueCard({ league }: { league: League }) {
   return (
     <Link
       to={`/leagues/${league.id}`}
-      className="group flex flex-col bg-white rounded-xl border border-gray-200 border-l-[5px] border-l-green-700 hover:border-l-green-500 hover:shadow-md transition-all"
+      className="group flex flex-col bg-white rounded-2xl border border-gray-200 border-l-[5px] border-l-green-700 hover:border-l-green-500 hover:shadow-lg transition-all"
     >
       {/* Header */}
       <div className="px-5 pt-5 pb-4 flex-1">
