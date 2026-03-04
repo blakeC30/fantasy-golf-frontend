@@ -129,6 +129,7 @@ export interface TournamentPicksSummary {
   member_count: number;
   picks_by_golfer: GolferPickGroup[]; // sorted by pick_count desc
   no_pick_members: { user_id: string; display_name: string }[];
+  winner: { golfer_name: string; pick_count: number } | null;
 }
 
 // ---------------------------------------------------------------------------

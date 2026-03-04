@@ -168,12 +168,6 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const submissionRate = summary ? (totalPickers / summary.member_count) * 100 : 0;
   const topPick = summary?.picks_by_golfer[0];
   const uniquePick = summary?.picks_by_golfer.filter((g) => g.pick_count === 1).length ?? 0;
-  const bestResult =
-    isCompleted && summary
-      ? [...summary.picks_by_golfer].sort(
-          (a, b) => (b.pickers[0]?.points_earned ?? 0) - (a.pickers[0]?.points_earned ?? 0)
-        )[0]
-      : null;
 
   return (
     <div className="space-y-4">
@@ -227,7 +221,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
       {summary && !isScheduled && (
         <div className="space-y-5">
           {/* Stats row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className={`grid grid-cols-2 gap-3 ${isCompleted ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
             <StatCard
               label="Submission rate"
               value={`${Math.round(submissionRate)}%`}
@@ -244,19 +238,12 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
               value={`${uniquePick}`}
               sub="golfers picked by exactly 1 member"
             />
-            {isCompleted && bestResult ? (
+            {isCompleted && summary.winner && (
               <StatCard
-                label="Top earner"
-                value={bestResult.golfer_name.split(" ").pop()!}
-                sub={formatPoints(bestResult.pickers[0]?.points_earned ?? null)}
-                color="text-green-700"
-              />
-            ) : (
-              <StatCard
-                label="No-pick members"
-                value={`${summary.no_pick_members.length}`}
-                sub={summary.no_pick_members.map((m) => m.display_name).join(", ") || "None"}
-                color={summary.no_pick_members.length > 0 ? "text-red-500" : "text-green-700"}
+                label="Picked the winner"
+                value={`${summary.winner.pick_count}`}
+                sub={`picked ${summary.winner.golfer_name.split(" ").pop()}`}
+                color={summary.winner.pick_count > 0 ? "text-green-700" : "text-gray-900"}
               />
             )}
           </div>
