@@ -1,11 +1,12 @@
 /**
- * MyPicks — season history of the current user's picks and points earned.
+ * Picks — season history of picks and points earned, viewable for any league member.
  */
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useMyPicks } from "../hooks/usePick";
-import { useLeague, useLeagueTournaments } from "../hooks/useLeague";
+import { useMyPicks, useAllPicks } from "../hooks/usePick";
+import { useLeague, useLeagueTournaments, useLeagueMembers } from "../hooks/useLeague";
+import { useAuthStore } from "../store/authStore";
 import { TournamentBadge } from "../components/TournamentBadge";
 import { GolferAvatar } from "../components/GolferAvatar";
 import { FlagIcon } from "../components/FlagIcon";
@@ -59,16 +60,54 @@ function SortButton({ label, active, dir, onClick }: {
 
 export function MyPicks() {
   const { leagueId } = useParams<{ leagueId: string }>();
-  const { data: picks, isLoading } = useMyPicks(leagueId!);
+  const currentUser = useAuthStore((s) => s.user);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
+  const [memberDropdownSearch, setMemberDropdownSearch] = useState("");
+  const memberDropdownRef = useRef<HTMLDivElement>(null);
+  const memberDropdownInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (memberDropdownRef.current && !memberDropdownRef.current.contains(e.target as Node)) {
+        setMemberDropdownOpen(false);
+        setMemberDropdownSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (memberDropdownOpen) memberDropdownInputRef.current?.focus();
+  }, [memberDropdownOpen]);
+
+  const { data: allPicks } = useAllPicks(leagueId!);
+  const { data: members } = useLeagueMembers(leagueId!);
   const { data: leagueTournaments } = useLeagueTournaments(leagueId!);
   const { data: league } = useLeague(leagueId!);
+  const { data: myPicksData, isLoading } = useMyPicks(leagueId!);
+  const approvedMembers = members?.filter((m) => m.status === "approved") ?? [];
+
+  // Default to the current user; allow switching via dropdown.
+  const viewingUserId = selectedUserId ?? currentUser?.id ?? null;
+  const isViewingSelf = !selectedUserId || selectedUserId === currentUser?.id;
+
+  // Current user always uses myPicksData (includes in-progress tournament picks).
+  // Other members use allPicks filtered by user — all-picks only exposes completed tournaments.
+  const picks = isViewingSelf
+    ? myPicksData ?? null
+    : viewingUserId
+    ? (allPicks?.filter((p) => p.user_id === viewingUserId) ?? null)
+    : null;
 
   const nextTournament = leagueTournaments
     ?.filter((t) => t.status === "scheduled")
     .sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
 
+  // hasPickForNext always reflects the current user — used for the Make Pick button label.
   const hasPickForNext = nextTournament
-    ? picks?.some((p) => p.tournament_id === nextTournament.id)
+    ? myPicksData?.some((p) => p.tournament_id === nextTournament.id)
     : false;
 
   // Map submitted picks by tournament id for quick lookup
@@ -155,7 +194,7 @@ export function MyPicks() {
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">
             Season History
           </p>
-          <h1 className="text-3xl font-bold text-gray-900">My Picks</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Picks</h1>
         </div>
         <Link
           to={`/leagues/${leagueId}/pick`}
@@ -167,6 +206,79 @@ export function MyPicks() {
           </svg>
         </Link>
       </div>
+
+      {/* Member selector */}
+      {approvedMembers.length > 1 && (() => {
+        const sortedMembers = [...approvedMembers].sort((a, b) =>
+          a.user.display_name.localeCompare(b.user.display_name)
+        );
+        const viewingMember = sortedMembers.find((m) => m.user_id === viewingUserId);
+        const filteredMembers = memberDropdownSearch
+          ? sortedMembers.filter((m) =>
+              m.user.display_name.toLowerCase().includes(memberDropdownSearch.toLowerCase())
+            )
+          : sortedMembers;
+        return (
+          <div ref={memberDropdownRef} className="relative inline-block">
+            <button
+              type="button"
+              onClick={() => { setMemberDropdownOpen((o) => !o); setMemberDropdownSearch(""); }}
+              className="min-w-[180px] flex items-center gap-2 text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-700 transition-colors"
+            >
+              <span className="flex-1 text-left truncate">
+                {viewingMember ? viewingMember.user.display_name : "Select a member…"}
+              </span>
+              <svg
+                className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${memberDropdownOpen ? "rotate-180" : ""}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {memberDropdownOpen && (
+              <div className="absolute left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <input
+                    ref={memberDropdownInputRef}
+                    type="text"
+                    value={memberDropdownSearch}
+                    onChange={(e) => setMemberDropdownSearch(e.target.value)}
+                    placeholder="Search…"
+                    className="w-full text-sm outline-none placeholder-gray-400 bg-transparent"
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {filteredMembers.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-gray-400">No results.</p>
+                  ) : (
+                    filteredMembers.map((m) => (
+                      <button
+                        key={m.user_id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedUserId(m.user_id);
+                          setMemberDropdownOpen(false);
+                          setMemberDropdownSearch("");
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between gap-3 transition-colors ${
+                          m.user_id === viewingUserId ? "bg-green-50 text-green-900" : "hover:bg-gray-50 text-gray-700"
+                        }`}
+                      >
+                        <span className="truncate">{m.user.display_name}</span>
+                        {m.user_id === currentUser?.id && (
+                          <span className="text-xs shrink-0 font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                            you
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Season total */}
       {picks && picks.length > 0 && (

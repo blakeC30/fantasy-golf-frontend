@@ -90,7 +90,7 @@ export function Layout() {
             {leagueId && (
               <>
                 {navLink(`/leagues/${leagueId}`, "Dashboard", true)}
-                {navLink(`/leagues/${leagueId}/picks`, "My Picks")}
+                {navLink(`/leagues/${leagueId}/picks`, "Picks")}
                 {navLink(`/leagues/${leagueId}/leaderboard`, "Leaderboard")}
                 {isManager && navLink(`/leagues/${leagueId}/manage`, "Manage")}
               </>
@@ -164,7 +164,7 @@ export function Layout() {
             )}
             {mobileNavTab(
               `/leagues/${leagueId}/picks`,
-              "My Picks",
+              "Picks",
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             )}
             {mobileNavTab(
