@@ -2,15 +2,73 @@
  * Dashboard — per-league home page.
  *
  * Shows: current/upcoming tournament, the user's pick for it, and a
- * standings preview (top 5).
+ * standings preview (top 5). If the current user is outside the top 5 they
+ * are always shown beneath a visual separator so they can see their own rank.
  */
 
 import { Link, useParams } from "react-router-dom";
 import { useLeague, useLeagueTournaments } from "../hooks/useLeague";
 import { fmtTournamentName } from "../utils";
 import { useMyPicks, useStandings } from "../hooks/usePick";
-import { StandingsTable } from "../components/StandingsTable";
+import { useAuthStore } from "../store/authStore";
 import { GolferAvatar } from "../components/GolferAvatar";
+import type { StandingsRow } from "../api/endpoints";
+
+// ---------------------------------------------------------------------------
+// Small helpers for the inline standings preview table
+// ---------------------------------------------------------------------------
+
+function fmtPoints(pts: number): string {
+  return `$${Math.round(pts).toLocaleString()}`;
+}
+
+function fmtRank(rank: number, isTied: boolean): string {
+  return isTied ? `T${rank}` : `${rank}`;
+}
+
+function rankCls(rank: number): string {
+  if (rank === 1) return "text-amber-500 font-bold";
+  if (rank === 2) return "text-slate-400 font-semibold";
+  if (rank === 3) return "text-orange-400 font-semibold";
+  return "text-gray-500";
+}
+
+function StandingsTr({
+  row,
+  isMe,
+  stripe,
+  borderTop,
+}: {
+  row: StandingsRow;
+  isMe: boolean;
+  stripe: boolean;
+  borderTop?: string;
+}) {
+  return (
+    <tr
+      className={`${borderTop ?? "border-t border-gray-100"} ${
+        isMe
+          ? "bg-green-50 border-l-2 border-l-green-400"
+          : stripe
+          ? "bg-gray-50"
+          : "bg-white"
+      }`}
+    >
+      <td className={`px-4 py-3 tabular-nums ${rankCls(row.rank)}`}>
+        {fmtRank(row.rank, row.is_tied)}
+      </td>
+      <td className={`px-4 py-3 ${isMe ? "font-semibold" : ""}`}>
+        {row.display_name}
+        {isMe && (
+          <span className="ml-1.5 text-green-700 text-xs font-normal">(you)</span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-right tabular-nums font-medium">
+        {fmtPoints(row.total_points)}
+      </td>
+    </tr>
+  );
+}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00");
@@ -32,6 +90,7 @@ export function Dashboard() {
   const { data: tournaments } = useLeagueTournaments(leagueId!);
   const { data: myPicks } = useMyPicks(leagueId!);
   const { data: standings } = useStandings(leagueId!);
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   // The "active" tournament is any in_progress one, or the nearest upcoming scheduled
   // one (smallest start_date in the future). The backend returns DESC order, so we
@@ -175,7 +234,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Standings preview */}
+      {/* Standings preview — top 5, with current user appended if outside top 5 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Standings</h2>
@@ -186,9 +245,56 @@ export function Dashboard() {
             Full leaderboard →
           </Link>
         </div>
-        {standings ? (
-          <StandingsTable rows={standings.rows} limit={5} />
-        ) : (
+        {standings ? (() => {
+          const top5 = standings.rows.slice(0, 5);
+          const meInTop5 = top5.some((r) => r.user_id === currentUserId);
+          const myRow = meInTop5
+            ? null
+            : standings.rows.find((r) => r.user_id === currentUserId) ?? null;
+
+          return (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="min-w-full text-sm">
+                <thead className="bg-green-900 text-white">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold w-12">Pos</th>
+                    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Player</th>
+                    <th className="px-4 py-2.5 text-right text-xs uppercase tracking-wider font-semibold">Points</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {top5.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-gray-400 text-sm">
+                        No standings yet — picks will appear after tournaments complete.
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {top5.map((row, i) => (
+                        <StandingsTr
+                          key={row.user_id}
+                          row={row}
+                          isMe={row.user_id === currentUserId}
+                          stripe={i % 2 !== 0}
+                        />
+                      ))}
+                      {myRow && (
+                        <StandingsTr
+                          key={myRow.user_id}
+                          row={myRow}
+                          isMe={true}
+                          stripe={false}
+                          borderTop="border-t-2 border-gray-300"
+                        />
+                      )}
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          );
+        })() : (
           <p className="text-gray-400 text-sm">Loading standings…</p>
         )}
       </div>
