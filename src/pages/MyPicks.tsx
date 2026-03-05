@@ -94,9 +94,9 @@ export function MyPicks() {
   const cutsMade = scoredPicks.filter((p) => p.points_earned! > 0);
   // Picks that earned $0 (missed the cut)
   const cutsMissed = scoredPicks.filter((p) => p.points_earned === 0);
-  // Picks submitted for completed tournaments (to measure submission rate)
-  const submittedForCompleted = picks?.filter((p) =>
-    completedTournaments.some((t) => t.id === p.tournament_id)
+  // Picks submitted for final (status === "completed") tournaments only
+  const submittedForFinal = picks?.filter((p) =>
+    leagueTournaments?.some((t) => t.id === p.tournament_id && t.status === "completed")
   ) ?? [];
   // Best single tournament
   const bestPick = scoredPicks.reduce<(typeof scoredPicks)[0] | null>(
@@ -119,17 +119,15 @@ export function MyPicks() {
     }
   }
 
-  // Unified history: all locked tournaments (with pick if exists) + future submitted picks
+  // Unified history: all locked tournaments + the single next upcoming tournament
   const historyRows = [
-    ...completedTournaments.map((t) => ({
-      key: `t-${t.id}`,
-      tournament: t,
-      pick: picksByTournamentId.get(t.id) ?? null,
-    })),
-    // Picks for upcoming tournaments not yet in the locked list
-    ...(picks ?? [])
-      .filter((p) => !completedTournaments.some((t) => t.id === p.tournament_id))
-      .map((p) => ({ key: `p-${p.id}`, tournament: p.tournament, pick: p })),
+    ...(leagueTournaments ?? [])
+      .filter((t) => t.status !== "scheduled" || t.id === nextTournament?.id)
+      .map((t) => ({
+        key: `t-${t.id}`,
+        tournament: t,
+        pick: picksByTournamentId.get(t.id) ?? null,
+      })),
   ].sort((a, b) => {
     let cmp = 0;
     if (sortField === "date") {
@@ -189,21 +187,13 @@ export function MyPicks() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard
             label="Pick Rate"
-            value={(() => {
-              const total = completedTournaments.length + (nextTournament ? 1 : 0);
-              const submitted = submittedForCompleted.length + (hasPickForNext ? 1 : 0);
-              return total > 0 ? `${Math.round((submitted / total) * 100)}%` : "—";
-            })()}
-            sub={(() => {
-              const total = completedTournaments.length + (nextTournament ? 1 : 0);
-              const submitted = submittedForCompleted.length + (hasPickForNext ? 1 : 0);
-              return total > 0 ? `${submitted} / ${total} tournaments` : undefined;
-            })()}
+            value={finalTournamentCount === 0 ? "—" : `${Math.round((submittedForFinal.length / finalTournamentCount) * 100)}%`}
+            sub={finalTournamentCount > 0 ? `${submittedForFinal.length} / ${finalTournamentCount} tournaments` : undefined}
           />
           <StatCard
             label="Cuts Missed"
             value={finalTournamentCount > 0 ? `${Math.round((cutsMissed.length / finalTournamentCount) * 100)}%` : "—"}
-            sub={`${cutsMissed.length} / ${finalTournamentCount} tournaments`}
+            sub={finalTournamentCount > 0 ? `${cutsMissed.length} / ${finalTournamentCount} tournaments` : undefined}
           />
           <StatCard
             label="Best Pick"
@@ -288,7 +278,9 @@ export function MyPicks() {
                   );
                 })() : (
                   <div className="text-right space-y-0.5">
-                    <p className="text-sm font-medium text-red-400">No pick</p>
+                    <p className={`text-sm font-medium ${tournament.status === "scheduled" ? "text-gray-400" : "text-red-400"}`}>
+                      {tournament.status === "scheduled" ? "No pick yet" : "No pick"}
+                    </p>
                     {tournament.status === "completed" && league?.no_pick_penalty !== undefined ? (
                       <p className="text-lg font-bold text-red-500 tabular-nums">
                         {formatPoints(league.no_pick_penalty)}

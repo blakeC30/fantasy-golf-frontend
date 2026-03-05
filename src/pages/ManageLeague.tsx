@@ -320,8 +320,26 @@ export function ManageLeague() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revisePickTournamentId, revisePickMemberId]);
 
+  // Detect no-repeat violation: member already used this golfer in another tournament.
+  const duplicatePickConflict = (() => {
+    if (!revisePickMemberId || revisePickGolferId === "none" || !allPicks) return null;
+    const conflict = allPicks.find(
+      (p) =>
+        p.user_id === revisePickMemberId &&
+        p.golfer_id === revisePickGolferId &&
+        p.tournament_id !== revisePickTournamentId
+    );
+    if (!conflict) return null;
+    const member = members?.find((m) => m.user_id === revisePickMemberId);
+    return {
+      memberName: member?.user.display_name ?? "This member",
+      golferName: conflict.golfer.name,
+      tournamentName: fmtTournamentName(conflict.tournament.name),
+    };
+  })();
+
   async function handleSaveRevisePick() {
-    if (!revisePickTournamentId || !revisePickMemberId) return;
+    if (!revisePickTournamentId || !revisePickMemberId || duplicatePickConflict) return;
     await overridePick.mutateAsync({
       user_id: revisePickMemberId,
       tournament_id: revisePickTournamentId,
@@ -905,6 +923,19 @@ export function ManageLeague() {
               </div>
             </div>
 
+            {duplicatePickConflict && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+                <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <span>
+                  <strong>{duplicatePickConflict.memberName}</strong> already picked{" "}
+                  <strong>{duplicatePickConflict.golferName}</strong> at the{" "}
+                  <strong>{duplicatePickConflict.tournamentName}</strong>. Each golfer can only be used once per season.
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSaveRevisePick}
@@ -912,6 +943,7 @@ export function ManageLeague() {
                   !revisePickTournamentId ||
                   !revisePickMemberId ||
                   overridePick.isPending ||
+                  !!duplicatePickConflict ||
                   revisePickGolferId === (
                     allPicks?.find(
                       (p) => p.tournament_id === revisePickTournamentId && p.user_id === revisePickMemberId
