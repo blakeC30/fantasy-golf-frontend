@@ -30,9 +30,10 @@ interface BarChartProps {
   groups: GolferPickGroup[];
   noPickMembers: string[];
   isCompleted: boolean;
+  myGolferName: string | null; // golfer the current user picked, or null if no pick
 }
 
-function PickBarChart({ groups, noPickMembers, isCompleted }: BarChartProps) {
+function PickBarChart({ groups, noPickMembers, isCompleted, myGolferName }: BarChartProps) {
   const [tooltip, setTooltip] = useState<string | null>(null);
 
   // Build chart data: one bar per golfer + one "No Pick" bar if applicable.
@@ -51,11 +52,25 @@ function PickBarChart({ groups, noPickMembers, isCompleted }: BarChartProps) {
 
   const maxCount = Math.max(...bars.map((b) => b.count), 1);
 
-  // Color: green for golfers, red for No Pick; amber for top pick
+  // Color scheme consistent with the site's green palette:
+  //   dark green  = current user's pick (matches header/button style — "this is yours")
+  //   light green = all other golfers (soft, clearly secondary)
+  //   muted red   = no pick submitted
   function barColor(b: typeof bars[0]): string {
-    if (b.label === "No Pick") return "bg-red-500";
-    if (b.count === maxCount) return "bg-green-700"; // most picked (including ties)
-    return "bg-green-400";
+    if (b.label === "No Pick") return "bg-red-300";
+    if (myGolferName && b.fullName === myGolferName) return "bg-green-800";
+    return "bg-green-200";
+  }
+
+  function labelColor(b: typeof bars[0]): string {
+    if (b.label === "No Pick") return "text-red-400";
+    if (myGolferName && b.fullName === myGolferName) return "text-green-800 font-semibold";
+    return "text-gray-400";
+  }
+
+  function countColor(b: typeof bars[0]): string {
+    if (myGolferName && b.fullName === myGolferName) return "text-green-800 font-semibold";
+    return "text-gray-400";
   }
 
   return (
@@ -75,7 +90,7 @@ function PickBarChart({ groups, noPickMembers, isCompleted }: BarChartProps) {
             onMouseEnter={() =>
               setTooltip(
                 b.names.length
-                  ? `${b.fullName}: ${b.names.join(", ")}`
+                  ? `${b.fullName}: ${[...b.names].sort((a, c) => a.localeCompare(c)).join(", ")}`
                   : b.label === "No Pick"
                   ? "No pick submitted"
                   : b.fullName
@@ -84,10 +99,10 @@ function PickBarChart({ groups, noPickMembers, isCompleted }: BarChartProps) {
             onMouseLeave={() => setTooltip(null)}
           >
             {/* Count label sits directly above the bar, pushed down by flex justify-end */}
-            <span className="text-[10px] text-gray-500 font-medium mb-0.5">{b.count}</span>
+            <span className={`text-[10px] mb-0.5 ${countColor(b)}`}>{b.count}</span>
             {/* Bar — percentage height resolves against the h-full column */}
             <div
-              className={`w-full rounded-t transition-opacity group-hover:opacity-80 ${barColor(b)}`}
+              className={`w-full rounded-t transition-opacity group-hover:opacity-70 ${barColor(b)}`}
               style={{ height: `${(b.count / maxCount) * 100}%`, minHeight: "4px" }}
             />
           </div>
@@ -98,7 +113,7 @@ function PickBarChart({ groups, noPickMembers, isCompleted }: BarChartProps) {
       <div className="flex gap-2 px-1">
         {bars.map((b) => (
           <div key={b.label} className="flex-1 text-center">
-            <span className="text-[10px] text-gray-500 leading-tight line-clamp-2 block">
+            <span className={`text-[10px] leading-tight line-clamp-2 block ${labelColor(b)}`}>
               {b.label}
             </span>
           </div>
@@ -173,6 +188,7 @@ function SortButton({ label, active, dir, onClick, align = "left" }: {
 
 function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const { data: leagueTournaments } = useLeagueTournaments(leagueId);
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [selectedId, setSelectedId] = useState<string>("");
   const [view, setView] = useState<"table" | "chart">("table");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -547,6 +563,11 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                   groups={summary.picks_by_golfer}
                   noPickMembers={summary.no_pick_members.map((m) => m.display_name)}
                   isCompleted={isCompleted}
+                  myGolferName={
+                    summary.picks_by_golfer.find((g) =>
+                      g.pickers.some((p) => p.user_id === currentUserId)
+                    )?.golfer_name ?? null
+                  }
                 />
               )}
             </div>

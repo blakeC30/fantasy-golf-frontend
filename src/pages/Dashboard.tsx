@@ -190,21 +190,18 @@ export function Dashboard() {
             <div className="flex items-center gap-2">
               {myPickForActive ? (
                 <>
-                  {(() => {
-                    const displayPoints = myPickForActive.points_earned;
-                    return displayPoints !== null ? (
-                      <span className="text-lg font-bold text-green-700">
-                        ${Math.round(displayPoints).toLocaleString()}
-                      </span>
-                    ) : (
-                      <Link
-                        to={`/leagues/${leagueId}/pick`}
-                        className="text-sm font-semibold text-green-700 hover:text-green-900 border border-green-200 hover:border-green-400 px-3 py-1.5 rounded-lg transition-colors"
-                      >
-                        Change pick →
-                      </Link>
-                    );
-                  })()}
+                  {myPickForActive.points_earned !== null ? (
+                    <span className="text-lg font-bold text-green-700">
+                      ${Math.round(myPickForActive.points_earned).toLocaleString()}
+                    </span>
+                  ) : !myPickForActive.is_locked ? (
+                    <Link
+                      to={`/leagues/${leagueId}/pick`}
+                      className="text-sm font-semibold text-green-700 hover:text-green-900 border border-green-200 hover:border-green-400 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Change pick →
+                    </Link>
+                  ) : null}
                 </>
               ) : (
                 <Link

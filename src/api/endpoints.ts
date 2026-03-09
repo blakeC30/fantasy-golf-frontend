@@ -77,6 +77,7 @@ export interface Pick {
   points_earned: number | null;
   earnings_usd: number | null; // raw golfer earnings before multiplier
   submitted_at: string;
+  is_locked: boolean; // true once the golfer's Round 1 tee time has passed
   golfer: Golfer;
   tournament: Tournament;
 }

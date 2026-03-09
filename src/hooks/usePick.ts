@@ -3,7 +3,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { picksApi, standingsApi, tournamentsApi } from "../api/endpoints";
+import { golfersApi, picksApi, standingsApi, tournamentsApi } from "../api/endpoints";
 
 export function useTournaments(status?: "scheduled" | "in_progress" | "completed") {
   return useQuery({
@@ -17,6 +17,14 @@ export function useTournamentField(tournamentId: string | undefined) {
     queryKey: ["tournamentField", tournamentId],
     queryFn: () => tournamentsApi.field(tournamentId!),
     enabled: !!tournamentId,
+  });
+}
+
+export function useAllGolfers() {
+  return useQuery({
+    queryKey: ["allGolfers"],
+    queryFn: () => golfersApi.list(),
+    staleTime: 5 * 60 * 1000, // 5 min — golfer roster changes slowly
   });
 }
 

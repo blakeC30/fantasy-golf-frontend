@@ -8,7 +8,7 @@ import { PickForm } from "../components/PickForm";
 import { GolferAvatar } from "../components/GolferAvatar";
 import { FlagIcon } from "../components/FlagIcon";
 import { useLeagueTournaments } from "../hooks/useLeague";
-import { useMyPicks, useSubmitPick, useTournamentField, useChangePick } from "../hooks/usePick";
+import { useMyPicks, useSubmitPick, useTournamentField, useChangePick, useAllGolfers } from "../hooks/usePick";
 import { fmtTournamentName } from "../utils";
 
 function formatDate(dateStr: string): string {
@@ -50,8 +50,15 @@ export function MakePick() {
     })[0];
 
   const { data: field } = useTournamentField(tournament?.id);
+  const { data: allGolfers } = useAllGolfers();
 
   const existingPick = myPicks?.find((p) => p.tournament_id === tournament?.id);
+
+  // When the tournament is scheduled but no field entries exist yet, fall back to
+  // all known golfers so users can pick early. The backend allows this pre-field pick.
+  const fieldNotReleased =
+    tournament?.status === "scheduled" && Array.isArray(field) && field.length === 0;
+  const effectiveField = fieldNotReleased ? (allGolfers ?? []) : (field ?? []);
 
   // Set of golfer IDs already used this season (for the "Used" greyed-out display).
   const usedGolferIds = new Set(myPicks?.map((p) => p.golfer_id) ?? []);
@@ -143,7 +150,8 @@ export function MakePick() {
     );
   }
 
-  if (field === undefined) {
+  // Still loading: field query hasn't resolved yet, or pre-field golfers haven't loaded.
+  if (field === undefined || (fieldNotReleased && allGolfers === undefined)) {
     return (
       <div className="max-w-lg mx-auto">
         <p className="text-gray-400">Loading tournament field…</p>
@@ -177,7 +185,34 @@ export function MakePick() {
     </div>
   );
 
-  if (field.length === 0) {
+  // Pick is locked — golfer has already teed off, no changes allowed.
+  if (existingPick?.is_locked) {
+    return (
+      <div className="max-w-lg mx-auto space-y-6">
+        {tournamentHeader}
+        <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10 text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-gray-200 text-gray-500 flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+          </div>
+          <p className="font-semibold text-gray-700">Pick locked</p>
+          <p className="text-sm text-gray-400 max-w-xs mx-auto">
+            Your pick of <span className="font-medium text-gray-600">{existingPick.golfer.name}</span> is locked — they've already teed off.
+          </p>
+          <Link
+            to={`/leagues/${leagueId}`}
+            className="inline-block text-sm font-semibold text-green-700 hover:text-green-900 mt-2 transition-colors"
+          >
+            Back to dashboard →
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // IN_PROGRESS with no field entries — can't pick without tee time data.
+  if (effectiveField.length === 0) {
     return (
       <div className="max-w-lg mx-auto space-y-6">
         {tournamentHeader}
@@ -206,13 +241,23 @@ export function MakePick() {
   return (
     <div className="max-w-lg mx-auto space-y-6">
       {tournamentHeader}
+      {fieldNotReleased && (
+        <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+          <p className="text-xs text-amber-700 leading-relaxed">
+            The official field hasn't been announced yet. You can pick early from all known golfers, but your pick may be subject to change if the golfer doesn't enter the tournament.
+          </p>
+        </div>
+      )}
       {tournament.status === "in_progress" && (
         <p className="text-xs text-gray-400 leading-relaxed">
-          This tournament is underway. You can still pick a golfer who hasn't teed off yet — the field below shows all players in the field. If you select someone who has already teed off, the submission will be rejected.
+          This tournament is underway. You can still pick a golfer who hasn't teed off yet.
         </p>
       )}
       <PickForm
-        field={field}
+        field={effectiveField}
         usedGolferIds={usedGolferIds}
         existingPick={existingPick}
         onSubmit={handleSubmit}

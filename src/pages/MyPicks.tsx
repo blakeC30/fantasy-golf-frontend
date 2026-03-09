@@ -31,6 +31,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
+type StatusFilter = "default" | "upcoming" | "all";
 type SortField = "date" | "tournament" | "golfer" | "points";
 type SortDir = "asc" | "desc";
 
@@ -101,7 +102,8 @@ export function MyPicks() {
     ? (allPicks?.filter((p) => p.user_id === viewingUserId) ?? null)
     : null;
 
-  const hasLiveTournament = leagueTournaments?.some((t) => t.status === "in_progress") ?? false;
+  const liveTournament = leagueTournaments?.find((t) => t.status === "in_progress");
+  const hasLiveTournament = !!liveTournament;
 
   // Only show the next upcoming tournament if there is no live one.
   const nextTournament = hasLiveTournament
@@ -114,6 +116,13 @@ export function MyPicks() {
   const hasPickForNext = nextTournament
     ? myPicksData?.some((p) => p.tournament_id === nextTournament.id)
     : false;
+
+  // Live tournament pick for current user — used to determine if pick button should show.
+  const myLivePick = liveTournament
+    ? myPicksData?.find((p) => p.tournament_id === liveTournament.id)
+    : undefined;
+  // Hide the pick button when the live tournament's pick is locked (golfer has teed off).
+  const pickActionAvailable = hasLiveTournament ? !myLivePick?.is_locked : !!nextTournament;
 
   // Map submitted picks by tournament id for quick lookup
   const picksByTournamentId = new Map(picks?.map((p) => [p.tournament_id, p]) ?? []);
@@ -151,6 +160,7 @@ export function MyPicks() {
   const avgEarnings = finalTournamentCount > 0 ? totalEarned / finalTournamentCount : null;
   const showStats = completedTournaments.length > 0;
 
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("default");
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -163,10 +173,15 @@ export function MyPicks() {
     }
   }
 
-  // Unified history: all locked tournaments + the single next upcoming tournament
+  // Unified history: filtered by statusFilter
   const historyRows = [
     ...(leagueTournaments ?? [])
-      .filter((t) => t.status !== "scheduled" || t.id === nextTournament?.id)
+      .filter((t) => {
+        if (statusFilter === "upcoming") return t.status === "scheduled";
+        if (statusFilter === "all") return true;
+        // default: completed/in_progress + the single next scheduled tournament
+        return t.status !== "scheduled" || t.id === nextTournament?.id;
+      })
       .map((t) => ({
         key: `t-${t.id}`,
         tournament: t,
@@ -201,15 +216,17 @@ export function MyPicks() {
           </p>
           <h1 className="text-3xl font-bold text-gray-900">Picks</h1>
         </div>
-        <Link
-          to={`/leagues/${leagueId}/pick`}
-          className="inline-flex items-center gap-2 bg-green-800 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-colors"
-        >
-          {hasPickForNext ? "Change Pick" : "Make Pick"}
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-          </svg>
-        </Link>
+        {pickActionAvailable && (
+          <Link
+            to={`/leagues/${leagueId}/pick`}
+            className="inline-flex items-center gap-2 bg-green-800 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-colors"
+          >
+            {hasPickForNext ? "Change Pick" : "Make Pick"}
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+          </Link>
+        )}
       </div>
 
       {/* Member selector */}
@@ -328,6 +345,29 @@ export function MyPicks() {
         <p className="text-gray-400">Loading…</p>
       ) : historyRows.length > 0 ? (
         <div className="space-y-2">
+          {/* Status filter */}
+          <div className="flex items-center gap-1 pb-1">
+            {(
+              [
+                ["default", "Recent"],
+                ["upcoming", "Upcoming"],
+                ["all", "All"],
+              ] as [StatusFilter, string][]
+            ).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setStatusFilter(val)}
+                className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${
+                  statusFilter === val
+                    ? "bg-green-800 text-white"
+                    : "text-gray-400 hover:text-gray-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Sort controls */}
           <div className="flex items-center justify-between px-1 pb-1 border-b border-gray-200">
             <div className="flex items-center gap-4">
