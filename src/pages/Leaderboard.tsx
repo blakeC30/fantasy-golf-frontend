@@ -11,21 +11,16 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useStandings, useTournamentPicksSummary } from "../hooks/usePick";
 import { useLeagueTournaments } from "../hooks/useLeague";
-import { StandingsTable } from "../components/StandingsTable";
+import { useAuthStore } from "../store/authStore";
 import { fmtTournamentName } from "../utils";
-import type { GolferPickGroup } from "../api/endpoints";
+import type { GolferPickGroup, StandingsRow } from "../api/endpoints";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatPoints(pts: number | null): string {
-  if (pts === null) return "—";
-  return `$${Math.round(pts).toLocaleString()}`;
-}
 
 // ---------------------------------------------------------------------------
 // Pure CSS bar chart (no library needed)
@@ -33,11 +28,11 @@ function formatPoints(pts: number | null): string {
 
 interface BarChartProps {
   groups: GolferPickGroup[];
-  noPicks: number;
+  noPickMembers: string[];
   isCompleted: boolean;
 }
 
-function PickBarChart({ groups, noPicks, isCompleted }: BarChartProps) {
+function PickBarChart({ groups, noPickMembers, isCompleted }: BarChartProps) {
   const [tooltip, setTooltip] = useState<string | null>(null);
 
   // Build chart data: one bar per golfer + one "No Pick" bar if applicable.
@@ -49,27 +44,34 @@ function PickBarChart({ groups, noPicks, isCompleted }: BarChartProps) {
       points: isCompleted ? (g.pickers[0]?.points_earned ?? null) : null,
       names: g.pickers.map((p) => p.display_name),
     })),
-    ...(noPicks > 0
-      ? [{ label: "No Pick", fullName: "No Pick", count: noPicks, points: null, names: [] }]
+    ...(noPickMembers.length > 0
+      ? [{ label: "No Pick", fullName: "No Pick", count: noPickMembers.length, points: null, names: noPickMembers }]
       : []),
   ];
 
   const maxCount = Math.max(...bars.map((b) => b.count), 1);
 
   // Color: green for golfers, red for No Pick; amber for top pick
-  function barColor(b: typeof bars[0], i: number): string {
-    if (b.label === "No Pick") return "bg-red-200";
-    if (i === 0) return "bg-green-700"; // most picked
+  function barColor(b: typeof bars[0]): string {
+    if (b.label === "No Pick") return "bg-red-500";
+    if (b.count === maxCount) return "bg-green-700"; // most picked (including ties)
     return "bg-green-400";
   }
 
   return (
     <div className="space-y-2">
+      {/*
+        The outer div is h-40 with items-end (flex row). Each column child is
+        flex-1, which only controls the *width* (main axis). To make percentage
+        heights on the bar resolve correctly, each column must have a definite
+        height — so we give it h-full. The count label is positioned absolutely
+        above the bar so it doesn't consume height that would break the ratio.
+      */}
       <div className="flex items-end gap-2 h-40 px-1">
-        {bars.map((b, i) => (
+        {bars.map((b) => (
           <div
             key={b.label}
-            className="flex-1 flex flex-col items-center gap-1 cursor-pointer group"
+            className="flex-1 h-full flex flex-col justify-end items-center cursor-pointer group"
             onMouseEnter={() =>
               setTooltip(
                 b.names.length
@@ -81,11 +83,11 @@ function PickBarChart({ groups, noPicks, isCompleted }: BarChartProps) {
             }
             onMouseLeave={() => setTooltip(null)}
           >
-            {/* Count label above bar */}
-            <span className="text-[10px] text-gray-500 font-medium">{b.count}</span>
-            {/* Bar */}
+            {/* Count label sits directly above the bar, pushed down by flex justify-end */}
+            <span className="text-[10px] text-gray-500 font-medium mb-0.5">{b.count}</span>
+            {/* Bar — percentage height resolves against the h-full column */}
             <div
-              className={`w-full rounded-t transition-opacity group-hover:opacity-80 ${barColor(b, i)}`}
+              className={`w-full rounded-t transition-opacity group-hover:opacity-80 ${barColor(b)}`}
               style={{ height: `${(b.count / maxCount) * 100}%`, minHeight: "4px" }}
             />
           </div>
@@ -133,6 +135,39 @@ function StatCard({ label, value, sub, color = "text-gray-900" }: StatCardProps)
 }
 
 // ---------------------------------------------------------------------------
+// Sorting types + SortButton (mirrors MyPicks.tsx exactly)
+// ---------------------------------------------------------------------------
+
+type BreakdownSortField = "member" | "golfer" | "earnings";
+type SortDir = "asc" | "desc";
+
+function SortButton({ label, active, dir, onClick, align = "left" }: {
+  label: string; active: boolean; dir: SortDir; onClick: () => void; align?: "left" | "right";
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider transition-colors ${
+        align === "right" ? "flex-row-reverse" : ""
+      } ${
+        active ? "text-green-300" : "text-white/60 hover:text-white"
+      }`}
+    >
+      {label}
+      <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        {active && dir === "asc" ? (
+          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+        ) : active && dir === "desc" ? (
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
+        )}
+      </svg>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Pick breakdown section
 // ---------------------------------------------------------------------------
 
@@ -144,6 +179,25 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownInputRef = useRef<HTMLInputElement>(null);
+
+  // Sort state for the breakdown table — resets when a new tournament is selected.
+  const [sortField, setSortField] = useState<BreakdownSortField>("member");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // Reset sort when the selected tournament changes.
+  useEffect(() => {
+    setSortField("member");
+    setSortDir("asc");
+  }, [selectedId]);
+
+  function handleSort(field: BreakdownSortField) {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir(field === "earnings" ? "desc" : "asc");
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -164,9 +218,10 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const sorted = [...(leagueTournaments ?? [])]
     .filter((t) => t.status !== "scheduled")
     .sort((a, b) => {
-      const order = { in_progress: 0, completed: 1, scheduled: 2 };
-      if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
-      return a.start_date.localeCompare(b.start_date);
+      // In-progress always first, then completed most-recent-first
+      if (a.status === "in_progress" && b.status !== "in_progress") return -1;
+      if (b.status === "in_progress" && a.status !== "in_progress") return 1;
+      return b.start_date.localeCompare(a.start_date);
     });
 
   const filteredTournaments = dropdownSearch
@@ -330,85 +385,167 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
           </div>
 
           {/* Table view */}
-          {view === "table" && (
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
-              <table className="min-w-full text-sm">
-                <thead className="bg-green-900 text-white">
-                  <tr>
-                    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">#</th>
-                    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Golfer</th>
-                    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Picked by</th>
-                    {isCompleted && <th className="px-4 py-2.5 text-right text-xs uppercase tracking-wider font-semibold">Points</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.picks_by_golfer.map((g, i) => (
-                    <tr
-                      key={g.golfer_id}
-                      className={`border-t border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
-                    >
-                      <td className="px-4 py-3 text-gray-400 tabular-nums">{g.pick_count}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{g.golfer_name}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {g.pickers.map((p) => (
-                            <span
-                              key={p.user_id}
-                              className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium"
-                            >
-                              {p.display_name}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      {isCompleted && (
-                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
-                          {formatPoints(g.pickers[0]?.points_earned ?? null)}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                  {summary.no_pick_members.length > 0 && (
-                    <tr className="border-t border-gray-100 bg-red-50">
-                      <td className="px-4 py-3 text-red-400 tabular-nums">0</td>
-                      <td className="px-4 py-3 text-gray-400 italic">No pick</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {summary.no_pick_members.map((m) => (
-                            <span
-                              key={m.user_id}
-                              className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium"
-                            >
-                              {m.display_name}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      {isCompleted && <td />}
-                    </tr>
-                  )}
-                  {summary.picks_by_golfer.length === 0 && (
+          {view === "table" && (() => {
+            // Flatten picks_by_golfer into one row per picker, sorted by points desc
+            // (nulls / no-picks at the bottom).
+            type PickRow = {
+              userId: string;
+              displayName: string;
+              golferName: string | null;
+              earningsUsd: number | null;
+              pointsEarned: number | null;
+            };
+
+            const multiplier = selectedTournament?.effective_multiplier ?? 1.0;
+            const showMultiplier = multiplier !== 1.0;
+
+            const pickRows: PickRow[] = summary.picks_by_golfer.flatMap((g) =>
+              g.pickers.map((p) => ({
+                userId: p.user_id,
+                displayName: p.display_name,
+                golferName: g.golfer_name,
+                earningsUsd: g.earnings_usd,
+                pointsEarned: p.points_earned,
+              }))
+            );
+
+            const noPickRows: PickRow[] = summary.no_pick_members.map((m) => ({
+              userId: m.user_id,
+              displayName: m.display_name,
+              golferName: null,
+              earningsUsd: null,
+              pointsEarned: null,
+            }));
+
+            // Sort pick rows by the active column; no-pick rows always sink to the bottom.
+            pickRows.sort((a, b) => {
+              let cmp = 0;
+              if (sortField === "member") {
+                cmp = a.displayName.localeCompare(b.displayName);
+              } else if (sortField === "golfer") {
+                cmp = (a.golferName ?? "").localeCompare(b.golferName ?? "");
+              } else if (sortField === "earnings") {
+                const aVal = a.pointsEarned ?? -Infinity;
+                const bVal = b.pointsEarned ?? -Infinity;
+                cmp = aVal - bVal;
+              }
+              return sortDir === "asc" ? cmp : -cmp;
+            });
+
+            const allRows = [...pickRows, ...noPickRows];
+
+            function renderEarningsCell(row: PickRow) {
+              if (!isCompleted) return <span className="text-gray-400">—</span>;
+              if (row.golferName === null) return <span className="text-gray-400">—</span>;
+              if (row.pointsEarned === null) return <span className="text-gray-400">—</span>;
+
+              if (showMultiplier && row.earningsUsd !== null) {
+                return (
+                  <div>
+                    <span className="text-gray-900 font-semibold">
+                      {`$${Math.round(row.earningsUsd).toLocaleString()}`}
+                    </span>
+                    <br />
+                    <span className="text-green-700 text-xs font-medium">
+                      {`${Math.round(row.pointsEarned).toLocaleString()} pts`}
+                    </span>
+                  </div>
+                );
+              }
+
+              return (
+                <span className="text-gray-900 font-semibold">
+                  {`$${Math.round(row.pointsEarned).toLocaleString()}`}
+                </span>
+              );
+            }
+
+            return (
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-green-900 text-white">
                     <tr>
-                      <td colSpan={isCompleted ? 4 : 3} className="px-4 py-6 text-center text-gray-400">
-                        No picks submitted for this tournament.
-                      </td>
+                      <th className="px-4 py-2.5 text-left">
+                        <SortButton
+                          label="Member"
+                          active={sortField === "member"}
+                          dir={sortDir}
+                          onClick={() => handleSort("member")}
+                        />
+                      </th>
+                      <th className="px-4 py-2.5 text-left">
+                        <SortButton
+                          label="Golfer"
+                          active={sortField === "golfer"}
+                          dir={sortDir}
+                          onClick={() => handleSort("golfer")}
+                        />
+                      </th>
+                      <th className="px-4 py-2.5 text-right">
+                        <SortButton
+                          label={showMultiplier ? `Earnings / Points (×${multiplier})` : "Earnings"}
+                          active={sortField === "earnings"}
+                          dir={sortDir}
+                          onClick={() => handleSort("earnings")}
+                          align="right"
+                        />
+                      </th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {allRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+                          No picks submitted for this tournament.
+                        </td>
+                      </tr>
+                    ) : (
+                      allRows.map((row, i) => {
+                        const isNoPick = row.golferName === null;
+                        return (
+                          <tr
+                            key={row.userId}
+                            className={`border-t border-gray-100 ${
+                              isNoPick
+                                ? "bg-red-50"
+                                : i % 2 === 0
+                                ? "bg-white"
+                                : "bg-gray-50"
+                            }`}
+                          >
+                            <td className="px-4 py-3 font-medium text-gray-900">
+                              {row.displayName}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {isNoPick ? (
+                                <span className="italic text-red-400">No pick</span>
+                              ) : (
+                                row.golferName
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums">
+                              {renderEarningsCell(row)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
 
           {/* Chart view */}
           {view === "chart" && (
             <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <p className="text-xs text-gray-400 mb-4">Number of picks per golfer</p>
+              <p className="text-sm font-semibold text-gray-700 mb-4">Pick Distribution</p>
               {summary.picks_by_golfer.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-8">No picks to display.</p>
               ) : (
                 <PickBarChart
                   groups={summary.picks_by_golfer}
-                  noPicks={summary.no_pick_members.length}
+                  noPickMembers={summary.no_pick_members.map((m) => m.display_name)}
                   isCompleted={isCompleted}
                 />
               )}
@@ -421,12 +558,92 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Inline standings row — mirrors Dashboard's StandingsTr exactly
+// ---------------------------------------------------------------------------
+
+function fmtPoints(pts: number): string {
+  return `$${Math.round(pts).toLocaleString()}`;
+}
+
+function fmtRank(rank: number, isTied: boolean): string {
+  return isTied ? `T${rank}` : `${rank}`;
+}
+
+function rankCls(rank: number): string {
+  if (rank === 1) return "text-amber-500 font-bold";
+  if (rank === 2) return "text-slate-400 font-semibold";
+  if (rank === 3) return "text-orange-400 font-semibold";
+  return "text-gray-500";
+}
+
+function StandingsTr({
+  row,
+  isMe,
+  stripe,
+  borderTop,
+}: {
+  row: StandingsRow;
+  isMe: boolean;
+  stripe: boolean;
+  borderTop?: string;
+}) {
+  return (
+    <tr
+      className={`${borderTop ?? "border-t border-gray-100"} ${
+        isMe
+          ? "bg-green-50 border-l-2 border-l-green-400"
+          : stripe
+          ? "bg-gray-50"
+          : "bg-white"
+      }`}
+    >
+      <td className={`px-4 py-3 tabular-nums ${rankCls(row.rank)}`}>
+        {fmtRank(row.rank, row.is_tied)}
+      </td>
+      <td className={`px-4 py-3 ${isMe ? "font-semibold" : ""}`}>
+        {row.display_name}
+        {isMe && (
+          <span className="ml-1.5 text-green-700 text-xs font-normal">(you)</span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-right tabular-nums font-medium">
+        {fmtPoints(row.total_points)}
+      </td>
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export function Leaderboard() {
   const { leagueId } = useParams<{ leagueId: string }>();
+  const [searchParams] = useSearchParams();
   const { data: standings, isLoading } = useStandings(leagueId!);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [expanded, setExpanded] = useState(() => searchParams.get("expand") === "1");
+
+  const totalRows = standings?.rows.length ?? 0;
+  const showToggle = totalRows > 5;
+
+  // Compute which rows to display
+  let displayedRows: StandingsRow[] = [];
+  let currentUserSeparatorRow: StandingsRow | null = null;
+
+  if (standings) {
+    if (expanded) {
+      displayedRows = standings.rows;
+    } else {
+      const top5 = standings.rows.slice(0, 5);
+      const meInTop5 = top5.some((r) => r.user_id === currentUserId);
+      displayedRows = top5;
+      if (!meInTop5) {
+        const myRow = standings.rows.find((r) => r.user_id === currentUserId) ?? null;
+        currentUserSeparatorRow = myRow;
+      }
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -445,7 +662,58 @@ export function Leaderboard() {
       {isLoading ? (
         <p className="text-gray-400">Loading…</p>
       ) : standings ? (
-        <StandingsTable rows={standings.rows} />
+        <div className="space-y-3">
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-green-900 text-white">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold w-12">Pos</th>
+                  <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Member</th>
+                  <th className="px-4 py-2.5 text-right text-xs uppercase tracking-wider font-semibold">Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-gray-400 text-sm">
+                      No standings yet — picks will appear after tournaments complete.
+                    </td>
+                  </tr>
+                ) : (
+                  <>
+                    {displayedRows.map((row, i) => (
+                      <StandingsTr
+                        key={row.user_id}
+                        row={row}
+                        isMe={row.user_id === currentUserId}
+                        stripe={i % 2 !== 0}
+                      />
+                    ))}
+                    {currentUserSeparatorRow && (
+                      <StandingsTr
+                        key={currentUserSeparatorRow.user_id}
+                        row={currentUserSeparatorRow}
+                        isMe={true}
+                        stripe={false}
+                        borderTop="border-t-2 border-gray-300"
+                      />
+                    )}
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {showToggle && (
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              className="text-sm font-medium text-green-700 hover:text-green-900"
+            >
+              {expanded ? "Show less ↑" : `Show all ${totalRows} members ↓`}
+            </button>
+          )}
+        </div>
       ) : (
         <p className="text-gray-400">No standings available yet.</p>
       )}

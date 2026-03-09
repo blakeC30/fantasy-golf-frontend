@@ -35,10 +35,19 @@ export function MakePick() {
   const submitPick = useSubmitPick(leagueId!);
   const changePick = useChangePick(leagueId!);
 
-  // Target the earliest upcoming scheduled tournament in the league's schedule.
+  // Target the earliest actionable tournament: prefer scheduled, then in_progress.
+  // In_progress tournaments are still pickable if the chosen golfer hasn't teed off yet
+  // (the backend enforces the tee_time check).
   const tournament = leagueTournaments
-    ?.filter((t) => t.status === "scheduled")
-    .sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
+    ?.filter((t) => t.status === "scheduled" || t.status === "in_progress")
+    .sort((a, b) => {
+      // Scheduled before in_progress so a pending pick always lands on the right week.
+      // Within the same status, sort by start_date ascending.
+      if (a.status !== b.status) {
+        return a.status === "scheduled" ? -1 : 1;
+      }
+      return a.start_date.localeCompare(b.start_date);
+    })[0];
 
   const { data: field } = useTournamentField(tournament?.id);
 
@@ -197,6 +206,11 @@ export function MakePick() {
   return (
     <div className="max-w-lg mx-auto space-y-6">
       {tournamentHeader}
+      {tournament.status === "in_progress" && (
+        <p className="text-xs text-gray-400 leading-relaxed">
+          This tournament is underway. You can still pick a golfer who hasn't teed off yet — the field below shows all players in the field. If you select someone who has already teed off, the submission will be rejected.
+        </p>
+      )}
       <PickForm
         field={field}
         usedGolferIds={usedGolferIds}

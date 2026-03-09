@@ -101,9 +101,14 @@ export function MyPicks() {
     ? (allPicks?.filter((p) => p.user_id === viewingUserId) ?? null)
     : null;
 
-  const nextTournament = leagueTournaments
-    ?.filter((t) => t.status === "scheduled")
-    .sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
+  const hasLiveTournament = leagueTournaments?.some((t) => t.status === "in_progress") ?? false;
+
+  // Only show the next upcoming tournament if there is no live one.
+  const nextTournament = hasLiveTournament
+    ? undefined
+    : leagueTournaments
+        ?.filter((t) => t.status === "scheduled")
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
 
   // hasPickForNext always reflects the current user — used for the Make Pick button label.
   const hasPickForNext = nextTournament

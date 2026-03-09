@@ -239,7 +239,7 @@ export function Dashboard() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Standings</h2>
           <Link
-            to={`/leagues/${leagueId}/leaderboard`}
+            to={`/leagues/${leagueId}/leaderboard?expand=1`}
             className="text-sm font-semibold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-1.5 rounded-lg transition-colors"
           >
             Full leaderboard →
