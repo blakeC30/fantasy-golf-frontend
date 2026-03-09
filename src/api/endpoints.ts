@@ -128,6 +128,63 @@ export interface GolferPickGroup {
   earnings_usd: number | null;
 }
 
+// ---------------------------------------------------------------------------
+// Leaderboard & scorecard types
+// ---------------------------------------------------------------------------
+
+export interface RoundSummary {
+  round_number: number;
+  score: number | null;
+  score_to_par: number | null;
+  position: string | null;
+  tee_time: string | null;
+}
+
+export interface LeaderboardEntry {
+  golfer_id: string;
+  golfer_name: string;
+  golfer_pga_tour_id: string;
+  golfer_country: string | null;
+  finish_position: number | null;
+  is_tied: boolean;
+  made_cut: boolean;
+  status: string | null;
+  earnings_usd: number | null;
+  total_score_to_par: number | null;
+  rounds: RoundSummary[];
+}
+
+export interface Leaderboard {
+  tournament_id: string;
+  tournament_name: string;
+  tournament_status: string;
+  entries: LeaderboardEntry[];
+}
+
+export type HoleResult =
+  | "eagle"
+  | "birdie"
+  | "par"
+  | "bogey"
+  | "double_bogey"
+  | "triple_plus";
+
+export interface HoleScore {
+  hole: number;
+  par: number | null;
+  score: number | null;
+  score_to_par: number | null;
+  result: HoleResult | null;
+}
+
+export interface Scorecard {
+  golfer_id: string;
+  round_number: number;
+  holes: HoleScore[];
+  total_score: number | null;
+  total_score_to_par: number | null;
+}
+
 export interface TournamentPicksSummary {
   tournament_status: "scheduled" | "in_progress" | "completed";
   member_count: number;
@@ -242,6 +299,16 @@ export const tournamentsApi = {
 
   field: (id: string) =>
     api.get<Golfer[]>(`/tournaments/${id}/field`).then((r) => r.data),
+
+  leaderboard: (id: string) =>
+    api.get<Leaderboard>(`/tournaments/${id}/leaderboard`).then((r) => r.data),
+
+  scorecard: (tournamentId: string, golferId: string, round: number) =>
+    api
+      .get<Scorecard>(`/tournaments/${tournamentId}/golfers/${golferId}/scorecard`, {
+        params: { round },
+      })
+      .then((r) => r.data),
 };
 
 // ---------------------------------------------------------------------------

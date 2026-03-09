@@ -380,76 +380,95 @@ export function MyPicks() {
             </div>
           </div>
 
-          {historyRows.map(({ key, tournament, pick }) => (
-            <div
-              key={key}
-              className={`bg-white border rounded-xl p-5 flex items-center justify-between gap-4 hover:shadow-sm transition-all ${
-                !pick && completedTournaments.some((t) => t.id === tournament.id)
-                  ? "border-red-100"
-                  : "border-gray-200"
-              }`}
-            >
-              <div className="space-y-1 min-w-0">
-                <p className="font-semibold text-gray-900 truncate">{fmtTournamentName(tournament.name)}</p>
-                <TournamentBadge tournament={tournament} showDates />
-              </div>
+          {historyRows.map(({ key, tournament, pick }) => {
+            const isClickable = tournament.status === "in_progress" || tournament.status === "completed";
+            const rowClass = `bg-white border rounded-xl p-5 flex items-center justify-between gap-4 transition-all ${
+              !pick && completedTournaments.some((t) => t.id === tournament.id)
+                ? "border-red-100"
+                : "border-gray-200"
+            } ${isClickable ? "hover:shadow-sm hover:border-green-300 cursor-pointer" : ""}`;
+            const rowContent = (
+              <>
+                <div className="space-y-1 min-w-0 flex-1">
+                  <p className="font-semibold text-gray-900 truncate">{fmtTournamentName(tournament.name)}</p>
+                  <TournamentBadge tournament={tournament} showDates />
+                </div>
 
-              <div className="flex items-center gap-3 shrink-0">
-                {pick ? (() => {
-                  const multiplier = "effective_multiplier" in tournament
-                    ? (tournament as { effective_multiplier: number }).effective_multiplier
-                    : 1;
-                  // points_earned is the authoritative value (matches standings/totals).
-                  const displayPoints = pick.points_earned;
-                  const missedCut = displayPoints === 0 && tournament.status === "completed";
-                  const showBreakdown = multiplier > 1 && pick.earnings_usd !== null && pick.earnings_usd > 0;
-                  return (
-                    <>
-                      <GolferAvatar
-                        pgaTourId={pick.golfer.pga_tour_id}
-                        name={pick.golfer.name}
-                        className="w-9 h-9"
-                      />
-                      <div className="text-right space-y-0.5">
-                        <p className="text-sm font-medium text-gray-600">{pick.golfer.name}</p>
-                        <p
-                          className={`text-lg font-bold leading-tight ${
-                            displayPoints === null
-                              ? "text-gray-300"
-                              : missedCut
-                              ? "text-gray-400"
-                              : displayPoints > 0
-                              ? "text-green-700 tabular-nums"
-                              : "text-red-500 tabular-nums"
-                          }`}
-                        >
-                          {missedCut ? "Missed Cut" : formatPoints(displayPoints)}
-                        </p>
-                        {showBreakdown && (
-                          <p className="text-xs text-gray-400 tabular-nums leading-tight">
-                            {formatPoints(pick.earnings_usd)} · {multiplier}×
+                <div className="flex items-center gap-3 shrink-0">
+                  {pick ? (() => {
+                    const multiplier = "effective_multiplier" in tournament
+                      ? (tournament as { effective_multiplier: number }).effective_multiplier
+                      : 1;
+                    const displayPoints = pick.points_earned;
+                    const missedCut = displayPoints === 0 && tournament.status === "completed";
+                    const showBreakdown = multiplier > 1 && pick.earnings_usd !== null && pick.earnings_usd > 0;
+                    return (
+                      <>
+                        <GolferAvatar
+                          pgaTourId={pick.golfer.pga_tour_id}
+                          name={pick.golfer.name}
+                          className="w-9 h-9"
+                        />
+                        <div className="text-right space-y-0.5">
+                          <p className="text-sm font-medium text-gray-600">{pick.golfer.name}</p>
+                          <p
+                            className={`text-lg font-bold leading-tight ${
+                              displayPoints === null
+                                ? "text-gray-300"
+                                : missedCut
+                                ? "text-gray-400"
+                                : displayPoints > 0
+                                ? "text-green-700 tabular-nums"
+                                : "text-red-500 tabular-nums"
+                            }`}
+                          >
+                            {missedCut ? "Missed Cut" : formatPoints(displayPoints)}
                           </p>
-                        )}
-                      </div>
-                    </>
-                  );
-                })() : (
-                  <div className="text-right space-y-0.5">
-                    <p className={`text-sm font-medium ${tournament.status === "scheduled" ? "text-gray-400" : "text-red-400"}`}>
-                      {tournament.status === "scheduled" ? "No pick yet" : "No pick"}
-                    </p>
-                    {tournament.status === "completed" && league?.no_pick_penalty !== undefined ? (
-                      <p className="text-lg font-bold text-red-500 tabular-nums">
-                        {formatPoints(league.no_pick_penalty)}
+                          {showBreakdown && (
+                            <p className="text-xs text-gray-400 tabular-nums leading-tight">
+                              {formatPoints(pick.earnings_usd)} · {multiplier}×
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })() : (
+                    <div className="text-right space-y-0.5">
+                      <p className={`text-sm font-medium ${tournament.status === "scheduled" ? "text-gray-400" : "text-red-400"}`}>
+                        {tournament.status === "scheduled" ? "No pick yet" : "No pick"}
                       </p>
-                    ) : (
-                      <p className="text-lg font-bold text-gray-300 tabular-nums">—</p>
-                    )}
-                  </div>
-                )}
+                      {tournament.status === "completed" && league?.no_pick_penalty !== undefined ? (
+                        <p className="text-lg font-bold text-red-500 tabular-nums">
+                          {formatPoints(league.no_pick_penalty)}
+                        </p>
+                      ) : (
+                        <p className="text-lg font-bold text-gray-300 tabular-nums">—</p>
+                      )}
+                    </div>
+                  )}
+                  {isClickable && (
+                    <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                  )}
+                </div>
+              </>
+            );
+
+            return isClickable ? (
+              <Link
+                key={key}
+                to={`/leagues/${leagueId}/tournaments/${tournament.id}`}
+                className={rowClass}
+              >
+                {rowContent}
+              </Link>
+            ) : (
+              <div key={key} className={rowClass}>
+                {rowContent}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="bg-gray-50 rounded-2xl border border-gray-200 p-16 text-center space-y-3">

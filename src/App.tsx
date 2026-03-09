@@ -21,6 +21,7 @@ import { PlatformAdmin } from "./pages/PlatformAdmin";
 import { JoinLeague } from "./pages/JoinLeague";
 import { Settings } from "./pages/Settings";
 import { CreateLeague } from "./pages/CreateLeague";
+import { TournamentDetail } from "./pages/TournamentDetail";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/leagues/:leagueId" element={<Dashboard />} />
         <Route path="/leagues/:leagueId/pick" element={<MakePick />} />
         <Route path="/leagues/:leagueId/picks" element={<MyPicks />} />
+        <Route path="/leagues/:leagueId/tournaments/:tournamentId" element={<TournamentDetail />} />
         <Route path="/leagues/:leagueId/leaderboard" element={<Leaderboard />} />
         <Route path="/leagues/:leagueId/manage" element={<ManageLeague />} />
         <Route path="/admin" element={<PlatformAdmin />} />

@@ -82,6 +82,27 @@ export function useChangePick(leagueId: string) {
   });
 }
 
+export function useTournamentLeaderboard(tournamentId: string | undefined) {
+  return useQuery({
+    queryKey: ["tournamentLeaderboard", tournamentId],
+    queryFn: () => tournamentsApi.leaderboard(tournamentId!),
+    enabled: !!tournamentId,
+    refetchInterval: 60_000, // auto-refresh every minute for live tournaments
+  });
+}
+
+export function useGolferScorecard(
+  tournamentId: string | undefined,
+  golferId: string | null,
+  round: number,
+) {
+  return useQuery({
+    queryKey: ["golferScorecard", tournamentId, golferId, round],
+    queryFn: () => tournamentsApi.scorecard(tournamentId!, golferId!, round),
+    enabled: !!tournamentId && !!golferId,
+  });
+}
+
 export function useAdminOverridePick(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
