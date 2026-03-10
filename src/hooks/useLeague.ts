@@ -137,7 +137,16 @@ export function useUpdateLeagueTournaments(leagueId: string) {
   return useMutation({
     mutationFn: (tournaments: { tournament_id: string; multiplier: number | null }[]) =>
       leaguesApi.updateTournaments(leagueId, tournaments),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["leagueTournaments", leagueId] }),
+    onSuccess: () => {
+      // Invalidate everything that derives from points_earned — the backend
+      // re-scores all completed picks when the schedule/multipliers change.
+      qc.invalidateQueries({ queryKey: ["leagueTournaments", leagueId] });
+      qc.invalidateQueries({ queryKey: ["standings", leagueId] });
+      qc.invalidateQueries({ queryKey: ["myPicks", leagueId] });
+      qc.invalidateQueries({ queryKey: ["allPicks", leagueId] });
+      qc.invalidateQueries({ queryKey: ["tournamentPicksSummary", leagueId] });
+      qc.invalidateQueries({ queryKey: ["myLeagues"] });
+    },
   });
 }
 

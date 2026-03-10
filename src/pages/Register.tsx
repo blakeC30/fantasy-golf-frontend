@@ -56,7 +56,7 @@ export function Register() {
             className="inline-flex items-center gap-2 text-xl font-bold text-green-900 hover:text-green-700 transition-colors"
           >
             <FlagIcon className="w-5 h-5 flex-shrink-0" />
-            Fantasy Golf
+            League Caddie
           </Link>
           <p className="text-2xl font-bold text-gray-900 pt-1">Create your account</p>
           <p className="text-sm text-gray-500">Free forever · No credit card required</p>

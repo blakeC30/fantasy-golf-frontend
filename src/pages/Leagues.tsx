@@ -32,7 +32,7 @@ export function Leagues() {
       {/* Page header */}
       <div className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">
-          Fantasy Golf
+          League Caddie
         </p>
         <h1 className="text-3xl font-bold text-gray-900">My Leagues</h1>
       </div>
@@ -41,7 +41,7 @@ export function Leagues() {
       {isLoading ? (
         <p className="text-gray-400">Loading…</p>
       ) : leagues && leagues.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={leagues.length === 1 ? "max-w-lg mx-auto" : "grid gap-4 sm:grid-cols-2"}>
           {leagues.map((l) => (
             <LeagueCard key={l.id} league={l} />
           ))}

@@ -29,7 +29,7 @@ function GradientShell({ children }: { children: React.ReactNode }) {
       {/* Logo */}
       <Link to="/" className="inline-flex items-center gap-2 text-lg font-bold text-green-300 hover:text-white mb-10 tracking-tight transition-colors">
         <FlagIcon className="w-5 h-5 flex-shrink-0" />
-        Fantasy Golf
+        League Caddie
       </Link>
       {children}
     </div>

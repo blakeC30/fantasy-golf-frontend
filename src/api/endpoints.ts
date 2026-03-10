@@ -155,12 +155,16 @@ export interface LeaderboardEntry {
   earnings_usd: number | null;
   total_score_to_par: number | null;
   rounds: RoundSummary[];
+  partner_name: string | null;
+  partner_golfer_id: string | null;
+  partner_golfer_pga_tour_id: string | null;
 }
 
 export interface Leaderboard {
   tournament_id: string;
   tournament_name: string;
   tournament_status: string;
+  is_team_event: boolean;
   entries: LeaderboardEntry[];
 }
 

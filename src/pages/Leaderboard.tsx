@@ -37,8 +37,13 @@ function PickBarChart({ groups, noPickMembers, isCompleted, myGolferName }: BarC
   const [tooltip, setTooltip] = useState<string | null>(null);
 
   // Build chart data: one bar per golfer + one "No Pick" bar if applicable.
+  // Sort by pick count desc, then alphabetically by last name for ties.
+  const lastName = (name: string) => name.split(" ").pop() ?? name;
+  const sortedGroups = [...groups].sort(
+    (a, b) => b.pick_count - a.pick_count || lastName(a.golfer_name).localeCompare(lastName(b.golfer_name))
+  );
   const bars: { label: string; fullName: string; count: number; points: number | null; names: string[] }[] = [
-    ...groups.map((g) => ({
+    ...sortedGroups.map((g) => ({
       label: g.golfer_name.split(" ").pop() ?? g.golfer_name, // last name only for space
       fullName: g.golfer_name,
       count: g.pick_count,

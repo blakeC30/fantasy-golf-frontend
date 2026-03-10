@@ -21,7 +21,7 @@ export function Welcome() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <span className="inline-flex items-center gap-2 text-lg font-bold text-green-900 tracking-tight">
             <FlagIcon className="w-5 h-5 flex-shrink-0" />
-            Fantasy Golf
+            League Caddie
           </span>
           <nav className="flex items-center gap-2">
             <Link
@@ -362,7 +362,7 @@ export function Welcome() {
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-green-700">
           <span className="inline-flex items-center gap-1.5 font-semibold text-green-500">
             <FlagIcon className="w-4 h-4 flex-shrink-0" />
-            Fantasy Golf
+            League Caddie
           </span>
           <span>© {new Date().getFullYear()} · Free to play</span>
           <div className="flex gap-4">

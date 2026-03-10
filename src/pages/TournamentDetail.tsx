@@ -14,7 +14,7 @@
  * - Earnings = raw prize money in USD, only shown when tournament is completed
  */
 
-import { useState } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMyPicks, useTournamentLeaderboard, useGolferScorecard } from "../hooks/usePick";
 import { GolferAvatar } from "../components/GolferAvatar";
@@ -92,6 +92,18 @@ function ScorecardPanel({
 
   const isPlayoff = round > 4;
 
+  // Always measure the regular-round table width so the wrapper never shrinks
+  // when switching to the narrower playoff scorecard — even if the panel opens
+  // directly on a playoff round. A hidden phantom table (same column structure)
+  // is always in the DOM so the ref is always populated on first paint.
+  const phantomTableRef = useRef<HTMLTableElement>(null);
+  const [minWrapperWidth, setMinWrapperWidth] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (phantomTableRef.current) {
+      setMinWrapperWidth(phantomTableRef.current.offsetWidth);
+    }
+  }, []);
+
   // Regular rounds: split into front 9 / back 9 with Out/In subtotals
   const front = !isPlayoff ? (scorecard?.holes.filter((h) => h.hole <= 9) ?? []) : [];
   const back  = !isPlayoff ? (scorecard?.holes.filter((h) => h.hole >= 10) ?? []) : [];
@@ -118,7 +130,57 @@ function ScorecardPanel({
   return (
     <tr>
       <td colSpan={colSpan} className="p-0">
-        <div className="bg-gray-50 border-t border-gray-100 px-5 py-4 space-y-3">
+        <div className="bg-gray-50 border-t border-gray-100 px-5 py-4">
+          {/* Phantom table — always in the DOM, invisible, zero height.
+              Must be a structural clone of the real regular-round table
+              (same element types, classes, and representative content)
+              so its measured offsetWidth matches the real table exactly.
+              This gives minWrapperWidth a correct value even when the panel
+              opens directly on a playoff round. */}
+          <div aria-hidden style={{ visibility: "hidden", height: 0, overflow: "hidden", position: "absolute", pointerEvents: "none" }}>
+            <table ref={phantomTableRef} className="text-xs border-collapse min-w-max">
+              <thead>
+                <tr className="text-gray-400">
+                  <th className="pr-3 pb-1 text-left font-semibold w-14">Hole</th>
+                  {[1,2,3,4,5,6,7,8,9].map((n) => (
+                    <th key={n} className="px-1 pb-1 text-center w-7 font-medium tabular-nums">{n}</th>
+                  ))}
+                  <th className="px-2 pb-1 text-center font-semibold text-gray-500 w-10">Out</th>
+                  {[10,11,12,13,14,15,16,17,18].map((n) => (
+                    <th key={n} className="px-1 pb-1 text-center w-7 font-medium tabular-nums">{n}</th>
+                  ))}
+                  <th className="px-2 pb-1 text-center font-semibold text-gray-500 w-10">In</th>
+                  <th className="pl-2 pb-1 text-center font-semibold text-gray-700 w-12">Total</th>
+                </tr>
+                <tr className="text-gray-400 border-b border-gray-200">
+                  <td className="pr-3 pb-1.5 font-semibold">Par</td>
+                  {Array.from({ length: 9 }, (_, i) => (
+                    <td key={i} className="px-1 pb-1.5 text-center tabular-nums">4</td>
+                  ))}
+                  <td className="px-2 pb-1.5 text-center font-semibold text-gray-500 tabular-nums">36</td>
+                  {Array.from({ length: 9 }, (_, i) => (
+                    <td key={i + 9} className="px-1 pb-1.5 text-center tabular-nums">4</td>
+                  ))}
+                  <td className="px-2 pb-1.5 text-center font-semibold text-gray-500 tabular-nums">36</td>
+                  <td className="pl-2 pb-1.5 text-center font-semibold text-gray-700 tabular-nums">72</td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="pr-3 pt-1.5 font-semibold text-gray-700">Score</td>
+                  {Array.from({ length: 18 }, (_, i) => (
+                    <td key={i} className="px-1 pt-1.5 text-center">
+                      <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold tabular-nums rounded-sm">4</span>
+                    </td>
+                  ))}
+                  <td className="px-2 pt-1.5 text-center font-bold tabular-nums text-gray-700">36</td>
+                  <td className="px-2 pt-1.5 text-center font-bold tabular-nums text-gray-700">36</td>
+                  <td className="pl-2 pt-1.5 text-center font-bold tabular-nums">72</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="mx-auto space-y-3" style={{ width: "fit-content", minWidth: minWrapperWidth }}>
           {/* Round tabs */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Round</span>
@@ -153,7 +215,7 @@ function ScorecardPanel({
           ) : isPlayoff ? (
             /* ── Playoff layout: flat hole list, no front/back split ── */
             <>
-              <div className="overflow-x-auto -mx-1 pb-1">
+              <div className="overflow-x-auto pb-1">
                 <table className="text-xs border-collapse">
                   <thead>
                     <tr className="text-gray-400">
@@ -210,7 +272,7 @@ function ScorecardPanel({
           ) : (
             /* ── Regular round layout: front 9 / Out / back 9 / In / Total ── */
             <>
-              <div className="overflow-x-auto -mx-1 pb-1">
+              <div className="overflow-x-auto pb-1">
                 <table className="text-xs border-collapse min-w-max">
                   <thead>
                     <tr className="text-gray-400">
@@ -272,6 +334,7 @@ function ScorecardPanel({
               </div>
             </>
           )}
+          </div>
         </div>
       </td>
     </tr>
@@ -314,12 +377,27 @@ export function TournamentDetail() {
   }
 
   const isCompleted = leaderboard.tournament_status === "completed";
+  const isTeamEvent = leaderboard.is_team_event;
+
+  // For team events, deduplicate entries so each pair appears once.
+  // Both partners share the same position/score — we keep the first occurrence
+  // of each team (by sort order) and skip the partner entry when we encounter it.
+  const displayEntries = (() => {
+    if (!isTeamEvent) return leaderboard.entries;
+    const seen = new Set<string>();
+    return leaderboard.entries.filter((e) => {
+      if (seen.has(e.golfer_id)) return false;
+      seen.add(e.golfer_id);
+      if (e.partner_golfer_id) seen.add(e.partner_golfer_id);
+      return true;
+    });
+  })();
 
   // Detect playoff rounds using the is_playoff flag (not round_number > 4,
   // which can pick up spurious ESPN data for non-playoff entries).
   const playoffRoundNums = [
     ...new Set(
-      leaderboard.entries.flatMap((e) =>
+      displayEntries.flatMap((e) =>
         e.rounds.filter((r) => r.is_playoff).map((r) => r.round_number)
       )
     ),
@@ -393,8 +471,8 @@ export function TournamentDetail() {
                 </tr>
               </thead>
               <tbody>
-                {leaderboard.entries.map((entry, idx) => {
-                  const isMyPick = entry.golfer_id === myPickedGolferId;
+                {displayEntries.map((entry, idx) => {
+                  const isMyPick = entry.golfer_id === myPickedGolferId || entry.partner_golfer_id === myPickedGolferId;
                   const isFaded = isWithdrawnOrCut(entry);
                   const isExpanded = expandedGolferId === entry.golfer_id;
 
@@ -405,7 +483,7 @@ export function TournamentDetail() {
                     .sort((a, b) => a - b);
 
                   // Show the cut line above the first player who did not make the cut
-                  const prevEntry = idx > 0 ? leaderboard.entries[idx - 1] : null;
+                  const prevEntry = idx > 0 ? displayEntries[idx - 1] : null;
                   const showCutLine = !entry.made_cut && (prevEntry === null || prevEntry.made_cut);
 
                   return (
@@ -438,24 +516,57 @@ export function TournamentDetail() {
 
                         {/* Golfer */}
                         <td className="px-3 py-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <GolferAvatar
-                              pgaTourId={entry.golfer_pga_tour_id}
-                              name={entry.golfer_name}
-                              className="w-8 h-8 shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <p className={`text-sm font-semibold truncate ${isMyPick ? "text-green-900" : "text-gray-800"}`}>
-                                {entry.golfer_name}
-                                {isMyPick && (
-                                  <span className="ml-1.5 text-xs font-bold text-green-600">★</span>
+                          {isTeamEvent && entry.partner_name ? (
+                            /* Team event: show both partners stacked */
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="relative shrink-0 w-12 h-8">
+                                <GolferAvatar
+                                  pgaTourId={entry.golfer_pga_tour_id}
+                                  name={entry.golfer_name}
+                                  className="w-8 h-8 absolute left-0 top-0 ring-2 ring-white"
+                                />
+                                <GolferAvatar
+                                  pgaTourId={entry.partner_golfer_pga_tour_id ?? ""}
+                                  name={entry.partner_name}
+                                  className="w-8 h-8 absolute left-4 top-0 ring-2 ring-white"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <p className={`text-sm font-semibold truncate ${isMyPick ? "text-green-900" : "text-gray-800"}`}>
+                                  {entry.golfer_id === myPickedGolferId ? (
+                                    <><span className="text-green-600">★</span> {entry.golfer_name} / {entry.partner_name}</>
+                                  ) : entry.partner_golfer_id === myPickedGolferId ? (
+                                    <>{entry.golfer_name} / <span className="text-green-600">★</span> {entry.partner_name}</>
+                                  ) : (
+                                    <>{entry.golfer_name} / {entry.partner_name}</>
+                                  )}
+                                </p>
+                                {entry.golfer_country && (
+                                  <p className="text-xs text-gray-400">{entry.golfer_country}</p>
                                 )}
-                              </p>
-                              {entry.golfer_country && (
-                                <p className="text-xs text-gray-400">{entry.golfer_country}</p>
-                              )}
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            /* Individual event: single golfer */
+                            <div className="flex items-center gap-2 min-w-0">
+                              <GolferAvatar
+                                pgaTourId={entry.golfer_pga_tour_id}
+                                name={entry.golfer_name}
+                                className="w-8 h-8 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <p className={`text-sm font-semibold truncate ${isMyPick ? "text-green-900" : "text-gray-800"}`}>
+                                  {entry.golfer_name}
+                                  {isMyPick && (
+                                    <span className="ml-1.5 text-xs font-bold text-green-600">★</span>
+                                  )}
+                                </p>
+                                {entry.golfer_country && (
+                                  <p className="text-xs text-gray-400">{entry.golfer_country}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </td>
 
                         {/* Score (total to par) */}

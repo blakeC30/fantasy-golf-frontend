@@ -82,7 +82,7 @@ export function Layout() {
             className="flex items-center gap-2 text-lg font-bold tracking-tight text-white hover:text-green-200 transition-colors"
           >
             <FlagIcon className="w-5 h-5 flex-shrink-0" />
-            Fantasy Golf
+            League Caddie
           </Link>
 
           {/* Desktop nav — hidden on mobile */}
@@ -143,7 +143,7 @@ export function Layout() {
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-green-700">
           <span className="inline-flex items-center gap-1.5 font-semibold text-green-500">
             <FlagIcon className="w-4 h-4 flex-shrink-0" />
-            Fantasy Golf
+            League Caddie
           </span>
           <span>© {new Date().getFullYear()} · Free to play</span>
           <Link to="/leagues" className="hover:text-green-400 transition-colors">

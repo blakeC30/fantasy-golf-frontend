@@ -133,22 +133,26 @@ export function MyPicks() {
     (t) => t.status === "completed" || t.status === "in_progress" || t.start_date <= today
   ) ?? [];
 
+  // Restrict all stat calculations to picks for tournaments in the league's active schedule.
+  const leagueTournamentIds = new Set(leagueTournaments?.map((t) => t.id) ?? []);
+  const scheduledPicks = picks?.filter((p) => leagueTournamentIds.has(p.tournament_id)) ?? null;
+
   // Fully finished tournaments with no pick submitted — penalty applies to these.
   const noPickCompletedCount = completedTournaments.filter(
-    (t) => t.status === "completed" && !picks?.some((p) => p.tournament_id === t.id)
+    (t) => t.status === "completed" && !scheduledPicks?.some((p) => p.tournament_id === t.id)
   ).length;
   const penaltyTotal = noPickCompletedCount * (league?.no_pick_penalty ?? 0);
 
   const totalEarned =
-    (picks?.reduce((sum, p) => sum + (p.points_earned ?? 0), 0) ?? 0) + penaltyTotal;
+    (scheduledPicks?.reduce((sum, p) => sum + (p.points_earned ?? 0), 0) ?? 0) + penaltyTotal;
   // Picks for which we have a final score
-  const scoredPicks = picks?.filter((p) => p.points_earned !== null) ?? [];
+  const scoredPicks = scheduledPicks?.filter((p) => p.points_earned !== null) ?? [];
   // Picks that earned money (made the cut)
   const cutsMade = scoredPicks.filter((p) => p.points_earned! > 0);
   // Picks that earned $0 (missed the cut)
   const cutsMissed = scoredPicks.filter((p) => p.points_earned === 0);
   // Picks submitted for final (status === "completed") tournaments only
-  const submittedForFinal = picks?.filter((p) =>
+  const submittedForFinal = scheduledPicks?.filter((p) =>
     leagueTournaments?.some((t) => t.id === p.tournament_id && t.status === "completed")
   ) ?? [];
   // Best single tournament
@@ -303,7 +307,7 @@ export function MyPicks() {
       })()}
 
       {/* Season total */}
-      {picks && picks.length > 0 && (
+      {scheduledPicks && scheduledPicks.length > 0 && (
         <div className="relative overflow-hidden bg-gradient-to-br from-green-900 via-green-800 to-green-700 rounded-2xl p-6 text-white shadow-lg shadow-green-900/20">
           {/* Decorative blob */}
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5 blur-2xl pointer-events-none" />
