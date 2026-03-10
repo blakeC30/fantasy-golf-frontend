@@ -78,6 +78,8 @@ export interface Pick {
   earnings_usd: number | null; // raw golfer earnings before multiplier
   submitted_at: string;
   is_locked: boolean; // true once the golfer's Round 1 tee time has passed
+  position: number | null; // golfer's current or final position; null if not started
+  is_tied: boolean; // true when multiple golfers share this position
   golfer: Golfer;
   tournament: Tournament;
 }
@@ -138,6 +140,7 @@ export interface RoundSummary {
   score_to_par: number | null;
   position: string | null;
   tee_time: string | null;
+  is_playoff: boolean;
 }
 
 export interface LeaderboardEntry {
@@ -362,9 +365,12 @@ export const standingsApi = {
 // ---------------------------------------------------------------------------
 
 export const adminApi = {
-  fullSync: (year?: number) =>
-    api.post("/admin/sync", null, { params: year ? { year } : {} }).then((r) => r.data),
+  fullSync: (year?: number, force = false) =>
+    api.post("/admin/sync", null, { params: { ...(year ? { year } : {}), ...(force ? { force: true } : {}) } }).then((r) => r.data),
 
   syncTournament: (pgaTourId: string) =>
     api.post(`/admin/sync/${pgaTourId}`).then((r) => r.data),
+
+  syncTournamentForce: (pgaTourId: string) =>
+    api.post(`/admin/sync/${pgaTourId}`, null, { params: { force: true } }).then((r) => r.data),
 };

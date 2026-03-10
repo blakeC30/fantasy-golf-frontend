@@ -50,6 +50,7 @@ export function useTournamentPicksSummary(leagueId: string, tournamentId: string
     queryFn: () => picksApi.tournamentSummary(leagueId, tournamentId!),
     enabled: !!leagueId && !!tournamentId,
     retry: false, // don't retry the 403 "scheduled" response
+    staleTime: 60 * 1000, // 1 min — pick summaries change only when picks are submitted
   });
 }
 
@@ -58,6 +59,7 @@ export function useStandings(leagueId: string) {
     queryKey: ["standings", leagueId],
     queryFn: () => standingsApi.get(leagueId),
     enabled: !!leagueId,
+    staleTime: 5 * 60 * 1000, // 5 min — standings only change when picks score (nightly)
   });
 }
 

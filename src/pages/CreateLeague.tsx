@@ -114,7 +114,7 @@ export function CreateLeague() {
   }
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-8 max-w-2xl mx-auto">
       {/* Page header */}
       <div className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">

@@ -320,14 +320,14 @@ export function MyPicks() {
       {showStats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard
-            label="Pick Rate"
+            label="Submission Rate"
             value={finalTournamentCount === 0 ? "—" : `${Math.round((submittedForFinal.length / finalTournamentCount) * 100)}%`}
             sub={finalTournamentCount > 0 ? `${submittedForFinal.length} / ${finalTournamentCount} tournaments` : undefined}
           />
           <StatCard
             label="Cuts Missed"
-            value={finalTournamentCount > 0 ? `${Math.round((cutsMissed.length / finalTournamentCount) * 100)}%` : "—"}
-            sub={finalTournamentCount > 0 ? `${cutsMissed.length} / ${finalTournamentCount} tournaments` : undefined}
+            value={scoredPicks.length > 0 ? `${Math.round((cutsMissed.length / scoredPicks.length) * 100)}%` : "—"}
+            sub={scoredPicks.length > 0 ? `${cutsMissed.length} of ${scoredPicks.length} picks` : undefined}
           />
           <StatCard
             label="Best Pick"

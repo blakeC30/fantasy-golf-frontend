@@ -162,6 +162,7 @@ export function ManageLeague() {
   const { data: pendingRequests } = usePendingRequests(leagueId!);
   const approveRequest = useApproveRequest(leagueId!);
   const denyRequest = useDenyRequest(leagueId!);
+  const [approveError, setApproveError] = useState("");
 
   const deleteLeague = useDeleteLeague();
   const [dangerStep, setDangerStep] = useState<"idle" | "editing" | "confirming">("idle");
@@ -556,7 +557,16 @@ export function ManageLeague() {
                   </div>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => approveRequest.mutate(r.user_id)}
+                      onClick={() => {
+                        setApproveError("");
+                        approveRequest.mutate(r.user_id, {
+                          onError: (err) => {
+                            const msg = (err as { response?: { data?: { detail?: string } } })
+                              ?.response?.data?.detail;
+                            setApproveError(msg ?? "Failed to approve request.");
+                          },
+                        });
+                      }}
                       disabled={approveRequest.isPending}
                       className="text-xs font-bold text-green-700 hover:text-green-900 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg disabled:opacity-40 transition-colors"
                     >
@@ -576,6 +586,9 @@ export function ManageLeague() {
                 </div>
               ))}
             </div>
+          )}
+          {approveError && (
+            <p className="text-xs text-red-600 mt-2">{approveError}</p>
           )}
         </section>
       )}
@@ -798,6 +811,7 @@ export function ManageLeague() {
                                       </span>
                                     ) : null}
                                     <span className="hidden sm:block text-xs text-gray-400 flex-shrink-0">{t.start_date}</span>
+
                                   </div>
                                 );
                               })}
@@ -865,7 +879,7 @@ export function ManageLeague() {
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tournament</label>
                 <DropdownSelect
                   value={revisePickTournamentId ?? ""}
-                  onChange={(val) => { setRevisePickTournamentId(val || null); setReviseSaved(false); }}
+                  onChange={(val) => { setRevisePickTournamentId(val || null); setRevisePickGolferId("none"); setReviseSaved(false); }}
                   placeholder="Select tournament…"
                   options={
                     leagueTournaments

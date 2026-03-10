@@ -90,20 +90,37 @@ function ScorecardPanel({
   const [showLegend, setShowLegend] = useState(false);
   const { data: scorecard, isLoading } = useGolferScorecard(tournamentId, entry.golfer_id, round);
 
-  // Split holes into front 9 (1-9) and back 9 (10-18)
-  const front = scorecard?.holes.filter((h) => h.hole <= 9) ?? [];
-  const back  = scorecard?.holes.filter((h) => h.hole >= 10) ?? [];
+  const isPlayoff = round > 4;
+
+  // Regular rounds: split into front 9 / back 9 with Out/In subtotals
+  const front = !isPlayoff ? (scorecard?.holes.filter((h) => h.hole <= 9) ?? []) : [];
+  const back  = !isPlayoff ? (scorecard?.holes.filter((h) => h.hole >= 10) ?? []) : [];
   const frontPar = front.reduce((s, h) => s + (h.par ?? 0), 0);
   const backPar  = back.reduce((s,  h) => s + (h.par ?? 0), 0);
   const frontScore = front.every((h) => h.score !== null) ? front.reduce((s, h) => s + (h.score ?? 0), 0) : null;
   const backScore  = back.every((h)  => h.score !== null) ? back.reduce((s,  h) => s + (h.score  ?? 0), 0) : null;
+
+  // Playoff rounds: show all holes in a flat list (typically 1–3 sudden-death holes)
+  const playoffHoles = isPlayoff ? (scorecard?.holes ?? []) : [];
+
+  function renderHoleCell(h: { hole: number; par: number | null; score: number | null; score_to_par: number | null; result: HoleResult | null }, tdClass: string) {
+    return (
+      <td key={h.hole} className={tdClass}>
+        {h.score !== null && h.result ? (() => {
+          const { chip, shape } = RESULT_STYLES[h.result];
+          const rounded = shape === "circle" || shape === "double-circle" ? "rounded-full" : shape === "none" ? "" : "rounded-sm";
+          return <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold tabular-nums ${rounded} ${chip}`}>{h.score}</span>;
+        })() : <span className="inline-flex items-center justify-center w-6 h-6"><span className="block w-3 h-px bg-gray-600 rounded-full" /></span>}
+      </td>
+    );
+  }
 
   return (
     <tr>
       <td colSpan={colSpan} className="p-0">
         <div className="bg-gray-50 border-t border-gray-100 px-5 py-4 space-y-3">
           {/* Round tabs */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Round</span>
             {availableRounds.map((r) => (
               <button
@@ -111,81 +128,63 @@ function ScorecardPanel({
                 onClick={() => setRound(r)}
                 className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
                   round === r
-                    ? "bg-green-800 text-white"
+                    ? r > 4 ? "bg-amber-500 text-white" : "bg-green-800 text-white"
                     : "bg-white border border-gray-200 text-gray-500 hover:border-green-400 hover:text-green-700"
                 }`}
               >
-                {r <= 4 ? `R${r}` : `PO${r - 4}`}
+                {r <= 4 ? `R${r}` : `Playoff${availableRounds.filter((x) => x > 4).length > 1 ? ` ${r - 4}` : ""}`}
               </button>
             ))}
+            {isPlayoff && (
+              <span className="ml-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                Sudden Death
+              </span>
+            )}
           </div>
 
           {isLoading ? (
             <p className="text-sm text-gray-400 py-2">Loading scorecard…</p>
           ) : !scorecard || scorecard.holes.length === 0 ? (
             <p className="text-sm text-gray-400 py-2">
-              Hole-by-hole data is not available for this round.
+              {isPlayoff
+                ? "Hole-by-hole playoff data is not available."
+                : "Hole-by-hole data is not available for this round."}
             </p>
-          ) : (
-            <div className="overflow-x-auto -mx-1">
-              <table className="text-xs border-collapse min-w-max">
-                <thead>
-                  <tr className="text-gray-400">
-                    <th className="pr-3 pb-1 text-left font-semibold w-14">Hole</th>
-                    {front.map((h) => (
-                      <th key={h.hole} className="px-1 pb-1 text-center w-7 font-medium tabular-nums">{h.hole}</th>
-                    ))}
-                    <th className="px-2 pb-1 text-center font-semibold text-gray-500 w-10">Out</th>
-                    {back.map((h) => (
-                      <th key={h.hole} className="px-1 pb-1 text-center w-7 font-medium tabular-nums">{h.hole}</th>
-                    ))}
-                    {back.length > 0 && <th className="px-2 pb-1 text-center font-semibold text-gray-500 w-10">In</th>}
-                    <th className="pl-2 pb-1 text-center font-semibold text-gray-700 w-12">Total</th>
-                  </tr>
-                  <tr className="text-gray-400 border-b border-gray-200">
-                    <td className="pr-3 pb-1.5 font-semibold">Par</td>
-                    {front.map((h) => <td key={h.hole} className="px-1 pb-1.5 text-center tabular-nums">{h.par ?? "—"}</td>)}
-                    <td className="px-2 pb-1.5 text-center font-semibold text-gray-500 tabular-nums">{frontPar || "—"}</td>
-                    {back.map((h)  => <td key={h.hole} className="px-1 pb-1.5 text-center tabular-nums">{h.par ?? "—"}</td>)}
-                    {back.length > 0 && <td className="px-2 pb-1.5 text-center font-semibold text-gray-500 tabular-nums">{backPar || "—"}</td>}
-                    <td className="pl-2 pb-1.5 text-center font-semibold text-gray-700 tabular-nums">{(frontPar + backPar) || "—"}</td>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="pr-3 pt-1.5 font-semibold text-gray-700">Score</td>
-                    {front.map((h) => (
-                      <td key={h.hole} className="px-1 pt-1.5 text-center">
-                        {h.score !== null && h.result ? (() => {
-                          const { chip, shape } = RESULT_STYLES[h.result];
-                          const rounded = shape === "circle" || shape === "double-circle" ? "rounded-full" : shape === "none" ? "" : "rounded-sm";
-                          return shape === "none"
-                            ? <span className={`text-xs font-semibold tabular-nums ${chip}`}>{h.score}</span>
-                            : <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold tabular-nums ${rounded} ${chip}`}>{h.score}</span>;
-                        })() : <span className="text-gray-300">—</span>}
+          ) : isPlayoff ? (
+            /* ── Playoff layout: flat hole list, no front/back split ── */
+            <>
+              <div className="overflow-x-auto -mx-1 pb-1">
+                <table className="text-xs border-collapse">
+                  <thead>
+                    <tr className="text-gray-400">
+                      <th className="pr-4 pb-1 text-left font-semibold w-16">Hole</th>
+                      {playoffHoles.map((h) => (
+                        <th key={h.hole} className="px-1 pb-1 text-center w-7 font-medium tabular-nums">{h.hole}</th>
+                      ))}
+                      <th className="pl-3 pb-1 text-center font-semibold text-gray-700 w-14">Result</th>
+                    </tr>
+                    <tr className="text-gray-400 border-b border-gray-200">
+                      <td className="pr-4 pb-1.5 font-semibold">Par</td>
+                      {playoffHoles.map((h) => (
+                        <td key={h.hole} className="px-1 pb-1.5 text-center tabular-nums">{h.par ?? "—"}</td>
+                      ))}
+                      <td className="pl-3 pb-1.5 text-center font-semibold text-gray-500 tabular-nums">
+                        {playoffHoles.reduce((s, h) => s + (h.par ?? 0), 0) || "—"}
                       </td>
-                    ))}
-                    <td className="px-2 pt-1.5 text-center font-bold tabular-nums text-gray-700">{frontScore ?? "—"}</td>
-                    {back.map((h) => (
-                      <td key={h.hole} className="px-1 pt-1.5 text-center">
-                        {h.score !== null && h.result ? (() => {
-                          const { chip, shape } = RESULT_STYLES[h.result];
-                          const rounded = shape === "circle" || shape === "double-circle" ? "rounded-full" : shape === "none" ? "" : "rounded-sm";
-                          return shape === "none"
-                            ? <span className={`text-xs font-semibold tabular-nums ${chip}`}>{h.score}</span>
-                            : <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold tabular-nums ${rounded} ${chip}`}>{h.score}</span>;
-                        })() : <span className="text-gray-300">—</span>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="pr-4 pt-1.5 font-semibold text-gray-700">Score</td>
+                      {playoffHoles.map((h) => renderHoleCell(h, "px-1 pt-1.5 text-center"))}
+                      <td className={`pl-3 pt-1.5 text-center font-bold tabular-nums ${stpClass(scorecard.total_score_to_par)}`}>
+                        {scorecard.total_score ?? "—"}
                       </td>
-                    ))}
-                    {back.length > 0 && <td className="px-2 pt-1.5 text-center font-bold tabular-nums text-gray-700">{backScore ?? "—"}</td>}
-                    <td className={`pl-2 pt-1.5 text-center font-bold tabular-nums ${stpClass(scorecard.total_score_to_par)}`}>
-                      {fmtStp(scorecard.total_score_to_par) || "—"}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-              {/* Legend (collapsed by default) */}
               <div className="mt-3">
                 <button
                   onClick={() => setShowLegend((v) => !v)}
@@ -194,16 +193,12 @@ function ScorecardPanel({
                   {showLegend ? "Hide legend ▲" : "Legend ▼"}
                 </button>
                 {showLegend && (
-                  <div className="flex flex-wrap gap-3 mt-2">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-2">
                     {(Object.keys(RESULT_STYLES) as HoleResult[]).map((r) => {
                       const { chip, shape } = RESULT_STYLES[r];
                       const rounded = shape === "circle" || shape === "double-circle" ? "rounded-full" : shape === "none" ? "" : "rounded-sm";
                       return (
-                        <span key={r} className="flex items-center gap-1.5 text-xs text-gray-500">
-                          {shape === "none"
-                            ? <span className={`text-xs font-semibold w-5 text-center ${chip}`}>4</span>
-                            : <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-bold ${rounded} ${chip}`}>4</span>
-                          }
+                        <span key={r} className={`inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${rounded} ${chip}`}>
                           {RESULT_LABELS[r]}
                         </span>
                       );
@@ -211,7 +206,71 @@ function ScorecardPanel({
                   </div>
                 )}
               </div>
-            </div>
+            </>
+          ) : (
+            /* ── Regular round layout: front 9 / Out / back 9 / In / Total ── */
+            <>
+              <div className="overflow-x-auto -mx-1 pb-1">
+                <table className="text-xs border-collapse min-w-max">
+                  <thead>
+                    <tr className="text-gray-400">
+                      <th className="pr-3 pb-1 text-left font-semibold w-14">Hole</th>
+                      {front.map((h) => (
+                        <th key={h.hole} className="px-1 pb-1 text-center w-7 font-medium tabular-nums">{h.hole}</th>
+                      ))}
+                      <th className="px-2 pb-1 text-center font-semibold text-gray-500 w-10">Out</th>
+                      {back.map((h) => (
+                        <th key={h.hole} className="px-1 pb-1 text-center w-7 font-medium tabular-nums">{h.hole}</th>
+                      ))}
+                      {back.length > 0 && <th className="px-2 pb-1 text-center font-semibold text-gray-500 w-10">In</th>}
+                      <th className="pl-2 pb-1 text-center font-semibold text-gray-700 w-12">Total</th>
+                    </tr>
+                    <tr className="text-gray-400 border-b border-gray-200">
+                      <td className="pr-3 pb-1.5 font-semibold">Par</td>
+                      {front.map((h) => <td key={h.hole} className="px-1 pb-1.5 text-center tabular-nums">{h.par ?? "—"}</td>)}
+                      <td className="px-2 pb-1.5 text-center font-semibold text-gray-500 tabular-nums">{frontPar || "—"}</td>
+                      {back.map((h)  => <td key={h.hole} className="px-1 pb-1.5 text-center tabular-nums">{h.par ?? "—"}</td>)}
+                      {back.length > 0 && <td className="px-2 pb-1.5 text-center font-semibold text-gray-500 tabular-nums">{backPar || "—"}</td>}
+                      <td className="pl-2 pb-1.5 text-center font-semibold text-gray-700 tabular-nums">{(frontPar + backPar) || "—"}</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="pr-3 pt-1.5 font-semibold text-gray-700">Score</td>
+                      {front.map((h) => renderHoleCell(h, "px-1 pt-1.5 text-center"))}
+                      <td className="px-2 pt-1.5 text-center font-bold tabular-nums text-gray-700">{frontScore ?? "—"}</td>
+                      {back.map((h) => renderHoleCell(h, "px-1 pt-1.5 text-center"))}
+                      {back.length > 0 && <td className="px-2 pt-1.5 text-center font-bold tabular-nums text-gray-700">{backScore ?? "—"}</td>}
+                      <td className={`pl-2 pt-1.5 text-center font-bold tabular-nums ${stpClass(scorecard.total_score_to_par)}`}>
+                        {scorecard.total_score ?? "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-3">
+                <button
+                  onClick={() => setShowLegend((v) => !v)}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showLegend ? "Hide legend ▲" : "Legend ▼"}
+                </button>
+                {showLegend && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-2">
+                    {(Object.keys(RESULT_STYLES) as HoleResult[]).map((r) => {
+                      const { chip, shape } = RESULT_STYLES[r];
+                      const rounded = shape === "circle" || shape === "double-circle" ? "rounded-full" : shape === "none" ? "" : "rounded-sm";
+                      return (
+                        <span key={r} className={`inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${rounded} ${chip}`}>
+                          {RESULT_LABELS[r]}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </td>
@@ -256,11 +315,12 @@ export function TournamentDetail() {
 
   const isCompleted = leaderboard.tournament_status === "completed";
 
-  // Detect playoff rounds (round_number > 4 means playoff)
+  // Detect playoff rounds using the is_playoff flag (not round_number > 4,
+  // which can pick up spurious ESPN data for non-playoff entries).
   const playoffRoundNums = [
     ...new Set(
       leaderboard.entries.flatMap((e) =>
-        e.rounds.filter((r) => r.round_number > 4).map((r) => r.round_number)
+        e.rounds.filter((r) => r.is_playoff).map((r) => r.round_number)
       )
     ),
   ].sort((a, b) => a - b);
@@ -408,8 +468,8 @@ export function TournamentDetail() {
                           const rd = entry.rounds.find((x) => x.round_number === r);
                           const hasScore = rd?.score_to_par !== null && rd?.score_to_par !== undefined;
                           return (
-                            <td key={r} className={`px-2 py-3 text-xs text-center tabular-nums ${hasScore ? stpClass(rd!.score_to_par) : "text-gray-300"}`}>
-                              {hasScore ? fmtStp(rd!.score_to_par) : ""}
+                            <td key={r} className={`px-2 py-3 text-xs text-center tabular-nums ${hasScore ? stpClass(rd!.score_to_par) : ""}`}>
+                              {hasScore ? fmtStp(rd!.score_to_par) : <span className="block mx-auto w-3 h-px bg-gray-600 rounded-full" />}
                             </td>
                           );
                         })}
@@ -419,8 +479,8 @@ export function TournamentDetail() {
                           const rd = entry.rounds.find((x) => x.round_number === r);
                           const hasScore = rd?.score_to_par !== null && rd?.score_to_par !== undefined;
                           return (
-                            <td key={r} className={`px-2 py-3 text-xs text-center tabular-nums ${hasScore ? stpClass(rd!.score_to_par) : "text-gray-300"}`}>
-                              {hasScore ? fmtStp(rd!.score_to_par) : ""}
+                            <td key={r} className={`px-2 py-3 text-xs text-center tabular-nums ${hasScore ? stpClass(rd!.score_to_par) : ""}`}>
+                              {hasScore ? fmtStp(rd!.score_to_par) : <span className="block mx-auto w-3 h-px bg-gray-600 rounded-full" />}
                             </td>
                           );
                         })}

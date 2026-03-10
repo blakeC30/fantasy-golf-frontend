@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useStandings, useTournamentPicksSummary } from "../hooks/usePick";
-import { useLeagueTournaments } from "../hooks/useLeague";
+import { useLeague, useLeagueTournaments } from "../hooks/useLeague";
 import { useAuthStore } from "../store/authStore";
 import { fmtTournamentName } from "../utils";
 import type { GolferPickGroup, StandingsRow } from "../api/endpoints";
@@ -188,6 +188,7 @@ function SortButton({ label, active, dir, onClick, align = "left" }: {
 
 function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const { data: leagueTournaments } = useLeagueTournaments(leagueId);
+  const { data: league } = useLeague(leagueId);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [selectedId, setSelectedId] = useState<string>("");
   const [view, setView] = useState<"table" | "chart">("table");
@@ -199,11 +200,13 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   // Sort state for the breakdown table — resets when a new tournament is selected.
   const [sortField, setSortField] = useState<BreakdownSortField>("member");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [memberSearch, setMemberSearch] = useState("");
 
-  // Reset sort when the selected tournament changes.
+  // Reset sort and search when the selected tournament changes.
   useEffect(() => {
     setSortField("member");
     setSortDir("asc");
+    setMemberSearch("");
   }, [selectedId]);
 
   function handleSort(field: BreakdownSortField) {
@@ -261,7 +264,16 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
     : 0;
   const submissionRate = summary ? (totalPickers / summary.member_count) * 100 : 0;
   const topPick = summary?.picks_by_golfer[0];
-  const uniquePick = summary?.picks_by_golfer.filter((g) => g.pick_count === 1).length ?? 0;
+  const missedCutPicks = summary?.picks_by_golfer
+    .filter((g) => g.earnings_usd === 0)
+    .reduce((s, g) => s + g.pick_count, 0) ?? 0;
+  const missedCutPct = totalPickers > 0 ? Math.round((missedCutPicks / totalPickers) * 100) : 0;
+  const multiplier = selectedTournament?.effective_multiplier ?? 1;
+  const totalPoints = summary?.picks_by_golfer.reduce(
+    (s, g) => s + (g.earnings_usd ?? 0) * g.pick_count * multiplier,
+    0
+  ) ?? 0;
+  const avgPoints = totalPickers > 0 ? Math.round(totalPoints / totalPickers) : null;
 
   return (
     <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 space-y-5">
@@ -361,21 +373,20 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
               color={submissionRate === 100 ? "text-green-700" : "text-gray-900"}
             />
             <StatCard
+              label="Missed cut"
+              value={totalPickers > 0 ? `${missedCutPct}%` : "—"}
+              sub={totalPickers > 0 ? `${missedCutPicks} of ${totalPickers} picks` : undefined}
+            />
+            <StatCard
               label="Most popular"
               value={topPick ? topPick.golfer_name.split(" ").pop()! : "—"}
               sub={topPick ? `${topPick.pick_count} pick${topPick.pick_count !== 1 ? "s" : ""}` : undefined}
             />
-            <StatCard
-              label="Unique picks"
-              value={`${uniquePick}`}
-              sub="golfers picked by exactly 1 member"
-            />
-            {isCompleted && summary.winner && (
+            {isCompleted && (
               <StatCard
-                label="Picked the winner"
-                value={`${summary.winner.pick_count}`}
-                sub={`picked ${summary.winner.golfer_name.split(" ").pop()}`}
-                color={summary.winner.pick_count > 0 ? "text-green-700" : "text-gray-900"}
+                label="Avg points"
+                value={avgPoints !== null ? `$${avgPoints.toLocaleString()}` : "—"}
+                sub="per pick submitted"
               />
             )}
           </div>
@@ -425,35 +436,51 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
               }))
             );
 
+            const noPickPenalty = league?.no_pick_penalty ?? 0;
             const noPickRows: PickRow[] = summary.no_pick_members.map((m) => ({
               userId: m.user_id,
               displayName: m.display_name,
               golferName: null,
-              earningsUsd: null,
-              pointsEarned: null,
+              earningsUsd: noPickPenalty !== 0 ? -noPickPenalty : null,
+              pointsEarned: noPickPenalty !== 0 ? -noPickPenalty : null,
             }));
 
-            // Sort pick rows by the active column; no-pick rows always sink to the bottom.
-            pickRows.sort((a, b) => {
+            const allRows = [...pickRows, ...noPickRows];
+
+            // Sort all rows (picks + no-picks) together.
+            // For earnings sort: no-pick rows sink to the bottom; for member/golfer: fully alphabetical.
+            allRows.sort((a, b) => {
               let cmp = 0;
               if (sortField === "member") {
                 cmp = a.displayName.localeCompare(b.displayName);
               } else if (sortField === "golfer") {
-                cmp = (a.golferName ?? "").localeCompare(b.golferName ?? "");
+                // No-pick rows (null golfer) sink to bottom when sorting by golfer
+                if (a.golferName === null && b.golferName === null) cmp = a.displayName.localeCompare(b.displayName);
+                else if (a.golferName === null) cmp = 1;
+                else if (b.golferName === null) cmp = -1;
+                else cmp = a.golferName.localeCompare(b.golferName);
               } else if (sortField === "earnings") {
-                const aVal = a.pointsEarned ?? -Infinity;
-                const bVal = b.pointsEarned ?? -Infinity;
-                cmp = aVal - bVal;
+                // No-pick rows sink to bottom when sorting by earnings
+                if (a.pointsEarned === null && b.pointsEarned === null) cmp = a.displayName.localeCompare(b.displayName);
+                else if (a.pointsEarned === null) cmp = 1;
+                else if (b.pointsEarned === null) cmp = -1;
+                else cmp = a.pointsEarned - b.pointsEarned;
               }
               return sortDir === "asc" ? cmp : -cmp;
             });
 
-            const allRows = [...pickRows, ...noPickRows];
-
             function renderEarningsCell(row: PickRow) {
               if (!isCompleted) return <span className="text-gray-400">—</span>;
-              if (row.golferName === null) return <span className="text-gray-400">—</span>;
               if (row.pointsEarned === null) return <span className="text-gray-400">—</span>;
+
+              // No-pick penalty row: show negative value in red
+              if (row.golferName === null) {
+                return (
+                  <span className="text-red-500 font-semibold">
+                    {`-$${Math.abs(Math.round(row.pointsEarned)).toLocaleString()}`}
+                  </span>
+                );
+              }
 
               if (showMultiplier && row.earningsUsd !== null) {
                 return (
@@ -476,8 +503,23 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
               );
             }
 
+            const visibleRows = memberSearch.trim()
+              ? allRows.filter((r) => r.displayName.toLowerCase().includes(memberSearch.toLowerCase()))
+              : allRows;
+
             return (
-              <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                {/* Member search */}
+                <div className="px-3 py-2 border-b border-gray-100 bg-white">
+                  <input
+                    type="text"
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                    placeholder="Search members…"
+                    className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-green-600 focus:border-green-600"
+                  />
+                </div>
+                <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-green-900 text-white">
                     <tr>
@@ -516,7 +558,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                         </td>
                       </tr>
                     ) : (
-                      allRows.map((row, i) => {
+                      visibleRows.map((row, i) => {
                         const isNoPick = row.golferName === null;
                         return (
                           <tr
@@ -548,6 +590,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                     )}
                   </tbody>
                 </table>
+              </div>
               </div>
             );
           })()}

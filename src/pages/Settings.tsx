@@ -126,7 +126,7 @@ export function Settings() {
   }
 
   return (
-    <div className="space-y-8 max-w-xl">
+    <div className="space-y-8 max-w-xl mx-auto">
       {/* Page header */}
       <div className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">
