@@ -11,6 +11,7 @@ import { TournamentBadge } from "../components/TournamentBadge";
 import { GolferAvatar } from "../components/GolferAvatar";
 import { FlagIcon } from "../components/FlagIcon";
 import { fmtTournamentName } from "../utils";
+import { useDropdownDirection } from "../hooks/useDropdownDirection";
 
 function formatPoints(pts: number | null): string {
   if (pts === null) return "—";
@@ -67,6 +68,7 @@ export function MyPicks() {
   const [memberDropdownSearch, setMemberDropdownSearch] = useState("");
   const memberDropdownRef = useRef<HTMLDivElement>(null);
   const memberDropdownInputRef = useRef<HTMLInputElement>(null);
+  const memberDropDir = useDropdownDirection(memberDropdownRef, memberDropdownOpen);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -262,7 +264,7 @@ export function MyPicks() {
               </svg>
             </button>
             {memberDropdownOpen && (
-              <div className="absolute left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+              <div className={`absolute left-0 w-64 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10 ${memberDropDir === "up" ? "bottom-full mb-1" : "top-full mt-1"}`}>
                 <div className="px-3 py-2 border-b border-gray-100">
                   <input
                     ref={memberDropdownInputRef}

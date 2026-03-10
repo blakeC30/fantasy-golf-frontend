@@ -17,6 +17,7 @@ import { useLeague, useLeagueTournaments } from "../hooks/useLeague";
 import { useAuthStore } from "../store/authStore";
 import { fmtTournamentName } from "../utils";
 import type { GolferPickGroup, StandingsRow } from "../api/endpoints";
+import { useDropdownDirection } from "../hooks/useDropdownDirection";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -201,6 +202,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownInputRef = useRef<HTMLInputElement>(null);
+  const dropDir = useDropdownDirection(dropdownRef, dropdownOpen);
 
   // Sort state for the breakdown table — resets when a new tournament is selected.
   const [sortField, setSortField] = useState<BreakdownSortField>("member");
@@ -301,7 +303,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
             </svg>
           </button>
           {dropdownOpen && (
-            <div className="absolute right-0 mt-1 w-full sm:w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+            <div className={`absolute right-0 w-full sm:w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10 ${dropDir === "up" ? "bottom-full mb-1" : "top-full mt-1"}`}>
               <div className="px-3 py-2 border-b border-gray-100">
                 <input
                   ref={dropdownInputRef}
