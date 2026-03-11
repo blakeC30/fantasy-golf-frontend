@@ -7,8 +7,10 @@ import { Link, useParams } from "react-router-dom";
 import { PickForm } from "../components/PickForm";
 import { GolferAvatar } from "../components/GolferAvatar";
 import { FlagIcon } from "../components/FlagIcon";
+import { PlayoffPreferenceEditor } from "../components/PlayoffPreferenceEditor";
 import { useLeagueTournaments } from "../hooks/useLeague";
 import { useMyPicks, useSubmitPick, useTournamentField, useChangePick, useAllGolfers } from "../hooks/usePick";
+import { useMyPlayoffPod, useMyPreferences } from "../hooks/usePlayoff";
 import { fmtTournamentName } from "../utils";
 
 function formatDate(dateStr: string): string {
@@ -48,6 +50,10 @@ export function MakePick() {
       }
       return a.start_date.localeCompare(b.start_date);
     })[0];
+
+  const { data: myPod } = useMyPlayoffPod(leagueId!);
+  const podIdForPrefs = myPod?.is_in_playoffs ? (myPod.active_pod_id ?? null) : null;
+  const { data: myPreferences = [] } = useMyPreferences(leagueId!, podIdForPrefs);
 
   const { data: field } = useTournamentField(tournament?.id);
   const { data: allGolfers } = useAllGolfers();
@@ -120,6 +126,153 @@ export function MakePick() {
         </div>
       </div>
     );
+  }
+
+  // Playoff week: show playoff preference UI instead of regular pick
+  if (myPod?.is_playoff_week) {
+    const podId = myPod.active_pod_id;
+    const tournamentId = myPod.tournament_id;
+
+    if (!myPod.is_in_playoffs) {
+      return (
+        <div className="max-w-lg mx-auto space-y-6">
+          {tournament && (
+            <div className="relative overflow-hidden bg-gradient-to-r from-green-900 to-green-700 text-white rounded-2xl px-6 py-5">
+              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300 mb-1">
+                Playoff Week
+              </p>
+              <p className="text-xl font-bold text-white">{fmtTournamentName(tournament.name)}</p>
+            </div>
+          )}
+          <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mx-auto">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
+              </svg>
+            </div>
+            <p className="font-semibold text-gray-700">Playoff Week</p>
+            <p className="text-sm text-gray-400 max-w-xs mx-auto">
+              This is a playoff round. You're not participating in the playoffs this week.
+            </p>
+            <Link
+              to={`/leagues/${leagueId}`}
+              className="inline-block text-sm font-semibold text-green-700 hover:text-green-900 mt-2 transition-colors"
+            >
+              Back to dashboard →
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    if (myPod.round_status === "locked") {
+      return (
+        <div className="max-w-lg mx-auto space-y-6">
+          {tournament && (
+            <div className="relative overflow-hidden bg-gradient-to-r from-green-900 to-green-700 text-white rounded-2xl px-6 py-5">
+              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300 mb-1">
+                Playoff Round {myPod.active_round_number}
+              </p>
+              <p className="text-xl font-bold text-white">{fmtTournamentName(tournament.name)}</p>
+            </div>
+          )}
+          <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-gray-200 text-gray-500 flex items-center justify-center mx-auto">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+              </svg>
+            </div>
+            <p className="font-semibold text-gray-700">Picks submitted</p>
+            <p className="text-sm text-gray-400 max-w-xs mx-auto">
+              The draft window has closed and your picks have been locked in.
+            </p>
+            <Link
+              to={`/leagues/${leagueId}/playoff`}
+              className="inline-block text-sm font-semibold text-green-700 hover:text-green-900 mt-2 transition-colors"
+            >
+              View Bracket →
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    // round_status === "drafting" or "pending" — members can submit preferences
+    if ((myPod.round_status === "drafting" || myPod.round_status === "pending") && podId && tournamentId) {
+      return (
+        <div className="max-w-lg mx-auto space-y-6">
+          {tournament ? (
+            <div className="relative overflow-hidden bg-gradient-to-r from-green-900 to-green-700 text-white rounded-2xl px-6 py-5">
+              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300">
+                      Playoff Round {myPod.active_round_number}
+                    </p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500 text-white">
+                      PLAYOFF
+                    </span>
+                  </div>
+                  <p className="text-xl font-bold text-white">{fmtTournamentName(tournament.name)}</p>
+                  <div className="flex items-center gap-3 mt-2 text-sm text-green-300">
+                    <span>{formatDate(tournament.start_date)}–{formatDate(tournament.end_date)}</span>
+                    {formatPurse(tournament.purse_usd) && (
+                      <>
+                        <span className="text-green-600">·</span>
+                        <span>{formatPurse(tournament.purse_usd)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gradient-to-r from-green-900 to-green-700 text-white rounded-2xl px-6 py-5">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300 mb-1">
+                Playoff Round {myPod.active_round_number}
+              </p>
+              <p className="text-xl font-bold text-white">Playoff Pick</p>
+            </div>
+          )}
+
+          <div className="flex items-start gap-2.5 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
+            <svg className="w-4 h-4 text-purple-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+            </svg>
+            <p className="text-xs text-purple-700 leading-relaxed">
+              <span className="font-semibold">Playoff draft.</span> Rank your preferred golfers in order. The system will assign picks using the draft algorithm — each player gets {myPod.picks_per_round} golfer{(myPod.picks_per_round ?? 1) !== 1 ? "s" : ""}. Submit before the tournament starts.
+            </p>
+          </div>
+
+          <PlayoffPreferenceEditor
+            leagueId={leagueId!}
+            podId={podId}
+            tournamentId={tournamentId}
+            currentPreferences={myPreferences}
+            picksPerRound={myPod.picks_per_round ?? undefined}
+            requiredCount={myPod.required_preference_count ?? undefined}
+          />
+
+          <div className="flex items-center gap-4 pt-2">
+            <Link
+              to={`/leagues/${leagueId}/playoff`}
+              className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors"
+            >
+              View Bracket →
+            </Link>
+            <Link
+              to={`/leagues/${leagueId}`}
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Back to dashboard
+            </Link>
+          </div>
+        </div>
+      );
+    }
   }
 
   if (!tournament) {

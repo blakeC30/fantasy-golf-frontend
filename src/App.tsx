@@ -22,6 +22,8 @@ import { JoinLeague } from "./pages/JoinLeague";
 import { Settings } from "./pages/Settings";
 import { CreateLeague } from "./pages/CreateLeague";
 import { TournamentDetail } from "./pages/TournamentDetail";
+import { PlayoffBracket } from "./pages/PlayoffBracket";
+import { PlayoffDraft } from "./pages/PlayoffDraft";
 
 export default function App() {
   return (
@@ -42,6 +44,8 @@ export default function App() {
         <Route path="/leagues/:leagueId/tournaments/:tournamentId" element={<TournamentDetail />} />
         <Route path="/leagues/:leagueId/leaderboard" element={<Leaderboard />} />
         <Route path="/leagues/:leagueId/manage" element={<ManageLeague />} />
+        <Route path="/leagues/:leagueId/playoff" element={<PlayoffBracket />} />
+        <Route path="/leagues/:leagueId/playoff/draft/:podId" element={<PlayoffDraft />} />
         <Route path="/admin" element={<PlatformAdmin />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

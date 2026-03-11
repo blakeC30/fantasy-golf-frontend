@@ -90,16 +90,16 @@ export function LeagueCard({ league }: { league: League }) {
       </div>
 
       {/* Stats row */}
-      <div className="px-5 py-4 grid grid-cols-3 divide-x divide-gray-100">
+      <div className="px-5 py-4 grid grid-cols-[1fr_2fr_1fr] divide-x divide-gray-100">
         <div className="pr-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Rank</p>
           <p className={`text-2xl font-bold tabular-nums leading-none ${myRow ? rankStyle(myRow.rank) : "text-gray-200"}`}>
             {myRow ? (myRow.is_tied ? `T${myRow.rank}` : `${myRow.rank}`) : "—"}
           </p>
         </div>
-        <div className="px-4">
+        <div className="px-4 min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Points</p>
-          <p className="text-xl font-bold tabular-nums leading-none text-gray-800 truncate">
+          <p className="text-2xl font-bold tabular-nums leading-none text-gray-800 break-all">
             {myRow ? formatPoints(myRow.total_points) : "—"}
           </p>
         </div>
@@ -116,14 +116,25 @@ export function LeagueCard({ league }: { league: League }) {
         {tournaments === undefined ? null : current ? (
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5">
                 <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
                 </svg>
                 <p className="text-xs font-semibold text-gray-700 truncate">{fmtTournamentName(current.name)}</p>
+              </div>
+              <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+                <span className="text-[11px] text-gray-400">
+                  {formatDate(current.start_date)}–{formatDate(current.end_date)}
+                  {current.status === "in_progress" && (
+                    <span className="ml-1.5 text-green-600 font-semibold">· Live</span>
+                  )}
+                  {formatPurse(current.purse_usd) && (
+                    <span className="ml-1.5">· {formatPurse(current.purse_usd)} purse</span>
+                  )}
+                </span>
                 {current.effective_multiplier >= 2 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 flex-shrink-0">
-                    {current.effective_multiplier}× MAJOR
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white flex-shrink-0">
+                    {current.effective_multiplier}×
                   </span>
                 )}
                 {current.effective_multiplier > 1 && current.effective_multiplier < 2 && (
@@ -132,21 +143,15 @@ export function LeagueCard({ league }: { league: League }) {
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-gray-400 mt-0.5">
-                {formatDate(current.start_date)}–{formatDate(current.end_date)}
-                {current.status === "in_progress" && (
-                  <span className="ml-1.5 text-green-600 font-semibold">· Live</span>
-                )}
-                {formatPurse(current.purse_usd) && (
-                  <span className="ml-1.5">· {formatPurse(current.purse_usd)} purse</span>
-                )}
-              </p>
               {myPickForCurrent ? (
                 <p className="text-[11px] text-green-700 font-medium mt-0.5 flex items-center gap-1">
                   <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                   </svg>
                   {myPickForCurrent.golfer.name}
+                  {myPickForCurrent.is_locked && (
+                    <span className="ml-0.5 text-[10px] text-gray-400 font-normal">· locked</span>
+                  )}
                 </p>
               ) : current.status === "scheduled" ? (
                 <p className="text-[11px] text-amber-600 font-medium mt-0.5 flex items-center gap-1">
@@ -163,9 +168,20 @@ export function LeagueCard({ league }: { league: League }) {
                   e.preventDefault();
                   navigate(`/leagues/${league.id}/pick`);
                 }}
-                className="flex-shrink-0 text-xs font-bold text-white bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded-lg transition-colors"
+                className="flex-shrink-0 text-xs font-bold text-white bg-green-700 hover:bg-green-600 px-2.5 py-1 rounded-lg transition-colors"
               >
                 Pick →
+              </button>
+            )}
+            {myPickForCurrent && !myPickForCurrent.is_locked && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(`/leagues/${league.id}/pick`);
+                }}
+                className="flex-shrink-0 text-xs font-bold text-green-800 border border-green-700 hover:bg-green-50 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                Change →
               </button>
             )}
           </div>

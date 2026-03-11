@@ -12,6 +12,7 @@ import { fmtTournamentName } from "../utils";
 import { useMyPicks, useStandings } from "../hooks/usePick";
 import { useAuthStore } from "../store/authStore";
 import { GolferAvatar } from "../components/GolferAvatar";
+import { usePlayoffConfig, useMyPlayoffPod } from "../hooks/usePlayoff";
 import type { StandingsRow } from "../api/endpoints";
 
 // ---------------------------------------------------------------------------
@@ -90,7 +91,10 @@ export function Dashboard() {
   const { data: tournaments } = useLeagueTournaments(leagueId!);
   const { data: myPicks } = useMyPicks(leagueId!);
   const { data: standings } = useStandings(leagueId!);
+  const { data: playoffConfig } = usePlayoffConfig(leagueId!);
+  const { data: myPod } = useMyPlayoffPod(leagueId!);
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const hasPlayoff = playoffConfig && playoffConfig.playoff_size > 0;
 
   // The "active" tournament is any in_progress one, or the nearest upcoming scheduled
   // one (smallest start_date in the future). The backend returns DESC order, so we
@@ -121,31 +125,36 @@ export function Dashboard() {
           <div className="bg-gradient-to-r from-green-900 to-green-700 px-5 py-4 text-white">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
-                <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300">
-                  {active.status === "in_progress" ? "Live Now" : "Up Next"}
-                </p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-xl font-bold text-white leading-tight">
-                    {fmtTournamentName(active.name)}
-                  </h2>
-                  {active.effective_multiplier >= 2 && (
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-400 text-amber-900">
-                      {active.effective_multiplier}× MAJOR
-                    </span>
-                  )}
-                  {active.effective_multiplier > 1 && active.effective_multiplier < 2 && (
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-200 text-blue-900">
-                      {active.effective_multiplier}× FEATURED
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300">
+                    {active.status === "in_progress" ? "Live Now" : "Up Next"}
+                  </p>
+                  {myPod?.is_playoff_week && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500 text-white flex-shrink-0">
+                      PLAYOFF
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 text-sm text-white/70">
+                <h2 className="text-xl font-bold text-white leading-tight">
+                  {fmtTournamentName(active.name)}
+                </h2>
+                <div className="flex items-center gap-3 flex-wrap text-sm text-white/70">
                   <span>{formatDate(active.start_date)}–{formatDate(active.end_date)}</span>
                   {formatPurse(active.purse_usd) && (
                     <>
                       <span className="text-white/30">·</span>
                       <span>{formatPurse(active.purse_usd)}</span>
                     </>
+                  )}
+                  {active.effective_multiplier >= 2 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white flex-shrink-0">
+                      {active.effective_multiplier}×
+                    </span>
+                  )}
+                  {active.effective_multiplier > 1 && active.effective_multiplier < 2 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex-shrink-0">
+                      {active.effective_multiplier}×
+                    </span>
                   )}
                 </div>
               </div>
@@ -154,67 +163,133 @@ export function Dashboard() {
 
           {/* Card body — pick status */}
           <div className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
-            {myPickForActive ? (
-              <div className="flex items-center gap-3">
-                <div className="relative shrink-0">
-                  <GolferAvatar
-                    pgaTourId={myPickForActive.golfer.pga_tour_id}
-                    name={myPickForActive.golfer.name}
-                    className="w-11 h-11"
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
-                    <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>
+            {(() => {
+              // Playoff week cases
+              if (myPod?.is_playoff_week) {
+                if (myPod.is_in_playoffs) {
+                  if (myPod.round_status === "drafting" || myPod.round_status === "pending") {
+                    return (
+                      <>
+                        <div className="flex items-center gap-3">
+                          {myPod.has_submitted ? (
+                            <>
+                              <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-400 font-medium">Playoff picks</p>
+                                <p className="text-base font-bold text-gray-900">{myPod.submitted_count} golfer{myPod.submitted_count !== 1 ? "s" : ""} ranked ✓</p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                                </svg>
+                              </div>
+                              <p className="text-base font-bold text-amber-600">No picks yet</p>
+                            </>
+                          )}
+                        </div>
+                        <Link
+                          to={`/leagues/${leagueId}/pick`}
+                          className="text-sm font-semibold text-white bg-green-800 hover:bg-green-700 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          {myPod.has_submitted ? "Update →" : "Submit Picks →"}
+                        </Link>
+                      </>
+                    );
+                  }
+                  if (myPod.round_status === "locked") {
+                    return (
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 font-medium">Playoff picks</p>
+                          <p className="text-base font-bold text-gray-700">Picks submitted</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                }
+                // In playoff week but not in playoffs
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-purple-50 text-purple-400 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
+                      </svg>
+                    </div>
+                    <p className="text-base font-semibold text-gray-400">Playoff Week</p>
                   </div>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 font-medium">Your pick</p>
-                  <p className="text-base font-bold text-gray-900">{myPickForActive.golfer.name}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-xs text-amber-600 font-medium">No pick yet</p>
-                  <p className="text-sm text-gray-500">Pick before the tournament begins</p>
-                </div>
-              </div>
-            )}
+                );
+              }
 
-            <div className="flex items-center gap-2">
-              {myPickForActive ? (
+              // Regular week
+              if (myPickForActive) {
+                return (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="relative shrink-0">
+                        <GolferAvatar
+                          pgaTourId={myPickForActive.golfer.pga_tour_id}
+                          name={myPickForActive.golfer.name}
+                          className="w-11 h-11"
+                        />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
+                          <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 font-medium">Your pick</p>
+                        <p className="text-base font-bold text-gray-900">{myPickForActive.golfer.name}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {myPickForActive.points_earned !== null ? (
+                        <span className="text-lg font-bold text-green-700">
+                          ${Math.round(myPickForActive.points_earned).toLocaleString()}
+                        </span>
+                      ) : !myPickForActive.is_locked ? (
+                        <Link
+                          to={`/leagues/${leagueId}/pick`}
+                          className="text-sm font-semibold text-green-700 hover:text-green-900 border border-green-200 hover:border-green-400 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Change →
+                        </Link>
+                      ) : null}
+                    </div>
+                  </>
+                );
+              }
+              return (
                 <>
-                  {myPickForActive.points_earned !== null ? (
-                    <span className="text-lg font-bold text-green-700">
-                      ${Math.round(myPickForActive.points_earned).toLocaleString()}
-                    </span>
-                  ) : !myPickForActive.is_locked ? (
-                    <Link
-                      to={`/leagues/${leagueId}/pick`}
-                      className="text-sm font-semibold text-green-700 hover:text-green-900 border border-green-200 hover:border-green-400 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      Change pick →
-                    </Link>
-                  ) : null}
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                      </svg>
+                    </div>
+                    <p className="text-base font-bold text-amber-600">No pick yet</p>
+                  </div>
+                  <Link
+                    to={`/leagues/${leagueId}/pick`}
+                    className="text-sm font-semibold text-white bg-green-800 hover:bg-green-700 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Pick →
+                  </Link>
                 </>
-              ) : (
-                <Link
-                  to={`/leagues/${leagueId}/pick`}
-                  className="inline-flex items-center gap-2 bg-green-800 hover:bg-green-700 text-white text-sm font-semibold px-6 py-3 rounded-xl shadow-sm transition-colors"
-                >
-                  Make your pick
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-                  </svg>
-                </Link>
-              )}
-            </div>
+              );
+            })()}
           </div>
         </div>
       ) : (
@@ -233,14 +308,24 @@ export function Dashboard() {
 
       {/* Standings preview — top 5, with current user appended if outside top 5 */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <h2 className="text-lg font-bold text-gray-900">Standings</h2>
-          <Link
-            to={`/leagues/${leagueId}/leaderboard?expand=1`}
-            className="text-sm font-semibold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-1.5 rounded-lg transition-colors"
-          >
-            Full leaderboard →
-          </Link>
+          <div className="flex items-center gap-2">
+            {hasPlayoff && (
+              <Link
+                to={`/leagues/${leagueId}/playoff`}
+                className="text-sm font-semibold text-green-700 hover:text-green-900 bg-green-50 hover:bg-green-100 px-4 py-1.5 rounded-lg transition-colors"
+              >
+                Playoff →
+              </Link>
+            )}
+            <Link
+              to={`/leagues/${leagueId}/leaderboard?expand=1`}
+              className="text-sm font-semibold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-1.5 rounded-lg transition-colors"
+            >
+              Full leaderboard →
+            </Link>
+          </div>
         </div>
         {standings ? (() => {
           const top5 = standings.rows.slice(0, 5);
@@ -252,7 +337,7 @@ export function Dashboard() {
           return (
             <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="min-w-full text-sm">
-                <thead className="bg-green-900 text-white">
+                <thead className="bg-gradient-to-r from-green-900 to-green-700 text-white">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold w-12">Pos</th>
                     <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Player</th>

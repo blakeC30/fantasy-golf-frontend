@@ -10,13 +10,14 @@
  *                  best/worst result (completed only)
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useStandings, useTournamentPicksSummary } from "../hooks/usePick";
 import { useLeague, useLeagueTournaments } from "../hooks/useLeague";
+import { useBracket } from "../hooks/usePlayoff";
 import { useAuthStore } from "../store/authStore";
 import { fmtTournamentName } from "../utils";
-import type { GolferPickGroup, StandingsRow } from "../api/endpoints";
+import type { GolferPickGroup, PlayoffRoundOut, StandingsRow } from "../api/endpoints";
 import { useDropdownDirection } from "../hooks/useDropdownDirection";
 
 // ---------------------------------------------------------------------------
@@ -189,12 +190,149 @@ function SortButton({ label, active, dir, onClick, align = "left" }: {
 }
 
 // ---------------------------------------------------------------------------
+// Playoff round breakdown (replaces stats/chart for playoff tournaments)
+// ---------------------------------------------------------------------------
+
+function PlayoffRoundBreakdown({ round }: { round: PlayoffRoundOut }) {
+  const currentUserId = useAuthStore((s) => s.user?.id);
+
+  // Determine if picks are visible: hidden when status is "locked" but picks arrays are all empty
+  // (server enforces this until all R1 tee times pass)
+  const allPicksEmpty = round.pods.every((pod) => pod.picks.length === 0);
+  const picksHidden = round.status === "locked" && allPicksEmpty;
+
+  if (round.status === "drafting") {
+    return (
+      <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 text-center space-y-1">
+        <p className="text-sm font-semibold text-purple-800">Draft is open</p>
+        <p className="text-xs text-purple-600">
+          Picks will be revealed after the tournament begins and all golfers have teed off.
+        </p>
+      </div>
+    );
+  }
+
+  if (picksHidden) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center space-y-1">
+        <p className="text-sm font-semibold text-amber-800">Tournament is underway</p>
+        <p className="text-xs text-amber-600">
+          Picks will be revealed once all golfers have teed off in Round 1.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {round.pods.map((pod) => {
+        // Build a map from pod_member_id → picks for easy lookup
+        const picksByMemberId = new Map(
+          pod.members.map((m) => [
+            m.id,
+            pod.picks.filter((p) => p.pod_member_id === m.id),
+          ])
+        );
+
+        // Sort members: highest total_points first; null floats to bottom
+        const sortedMembers = [...pod.members].sort((a, b) => {
+          if (a.total_points === null && b.total_points === null) return 0;
+          if (a.total_points === null) return 1;
+          if (b.total_points === null) return -1;
+          return b.total_points - a.total_points;
+        });
+
+        return (
+          <div key={pod.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-2.5 bg-gradient-to-r from-purple-900 to-purple-700 flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-white">
+                Pod {pod.bracket_position}
+              </span>
+              {pod.status === "completed" && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white">
+                  Final
+                </span>
+              )}
+            </div>
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Member</th>
+                  <th className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Picks</th>
+                  <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400">Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMembers.map((member, i) => {
+                  const isMe = member.user_id === currentUserId;
+                  const isWinner = pod.winner_user_id === member.user_id;
+                  const picks = picksByMemberId.get(member.id) ?? [];
+                  return (
+                    <tr
+                      key={member.id}
+                      className={`border-t border-gray-100 ${
+                        isMe ? "bg-green-50" : i % 2 === 0 ? "bg-white" : "bg-gray-50"
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {isWinner && (
+                            <span className="text-amber-500" title="Winner">★</span>
+                          )}
+                          <span className={`font-medium ${isMe ? "text-green-900" : "text-gray-900"}`}>
+                            {member.display_name}
+                            {isMe && <span className="ml-1 text-green-600 text-xs font-normal">(you)</span>}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {picks.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {picks
+                              .sort((a, b) => a.draft_slot - b.draft_slot)
+                              .map((p) => (
+                                <span
+                                  key={p.id}
+                                  className="text-[11px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 whitespace-nowrap"
+                                >
+                                  {p.golfer_name}
+                                  {p.points_earned !== null && (
+                                    <span className="ml-1 text-green-700 font-medium">
+                                      ${Math.round(p.points_earned).toLocaleString()}
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs italic">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">
+                        {member.total_points !== null
+                          ? `$${Math.round(member.total_points).toLocaleString()}`
+                          : <span className="text-gray-400 font-normal">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Pick breakdown section
 // ---------------------------------------------------------------------------
 
 function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const { data: leagueTournaments } = useLeagueTournaments(leagueId);
   const { data: league } = useLeague(leagueId);
+  const { data: bracket } = useBracket(leagueId);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [selectedId, setSelectedId] = useState<string>("");
   const [view, setView] = useState<"table" | "chart">("table");
@@ -256,11 +394,22 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
 
   const selectedTournament = sorted.find((t) => t.id === selectedId);
 
+  // Map tournament_id → PlayoffRoundOut for fast playoff detection
+  const playoffRoundByTournamentId = useMemo(() => {
+    const m = new Map<string, PlayoffRoundOut>();
+    for (const r of bracket?.rounds ?? []) {
+      if (r.tournament_id) m.set(r.tournament_id, r);
+    }
+    return m;
+  }, [bracket]);
+
+  const selectedPlayoffRound = selectedId ? playoffRoundByTournamentId.get(selectedId) : undefined;
+
   const {
     data: summary,
     isLoading,
     error,
-  } = useTournamentPicksSummary(leagueId, selectedId || null);
+  } = useTournamentPicksSummary(leagueId, selectedPlayoffRound ? null : (selectedId || null));
 
   const isCompleted = selectedTournament?.status === "completed";
   const isScheduled = selectedTournament?.status === "scheduled";
@@ -328,15 +477,22 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                       }`}
                     >
                       <span className="truncate">{fmtTournamentName(t.name)}</span>
-                      <span className={`text-xs shrink-0 font-medium px-2 py-0.5 rounded-full ${
-                        t.status === "in_progress"
-                          ? "bg-green-100 text-green-700"
-                          : t.status === "completed"
-                          ? "bg-gray-100 text-gray-500"
-                          : "bg-blue-50 text-blue-600"
-                      }`}>
-                        {t.status === "in_progress" ? "Live" : t.status === "completed" ? "Final" : "Upcoming"}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {playoffRoundByTournamentId.has(t.id) && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                            PO
+                          </span>
+                        )}
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          t.status === "in_progress"
+                            ? "bg-green-100 text-green-700"
+                            : t.status === "completed"
+                            ? "bg-gray-100 text-gray-500"
+                            : "bg-blue-50 text-blue-600"
+                        }`}>
+                          {t.status === "in_progress" ? "Live" : t.status === "completed" ? "Final" : "Upcoming"}
+                        </span>
+                      </div>
                     </button>
                   ))
                 )}
@@ -365,11 +521,16 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
         <p className="text-gray-400 text-sm">Loading picks…</p>
       )}
 
-      {selectedId && !isScheduled && !isLoading && error && (
+      {selectedId && !isScheduled && !isLoading && !selectedPlayoffRound && error && (
         <p className="text-gray-400 text-sm">No pick data available for this tournament yet.</p>
       )}
 
-      {summary && !isScheduled && (
+      {/* Playoff round breakdown — replaces stats/chart for playoff tournaments */}
+      {selectedPlayoffRound && (
+        <PlayoffRoundBreakdown round={selectedPlayoffRound} />
+      )}
+
+      {summary && !isScheduled && !selectedPlayoffRound && (
         <div className="space-y-5">
           {/* Stats row */}
           <div className={`grid grid-cols-2 gap-3 ${isCompleted ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
@@ -528,7 +689,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                 </div>
                 <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
-                  <thead className="bg-green-900 text-white">
+                  <thead className="bg-gradient-to-r from-green-900 to-green-700 text-white">
                     <tr>
                       <th className="px-4 py-2.5 text-left">
                         <SortButton
@@ -736,7 +897,7 @@ export function Leaderboard() {
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="min-w-full text-sm">
-              <thead className="bg-green-900 text-white">
+              <thead className="bg-gradient-to-r from-green-900 to-green-700 text-white">
                 <tr>
                   <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold w-12">Pos</th>
                   <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Member</th>

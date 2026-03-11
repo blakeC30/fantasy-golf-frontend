@@ -472,7 +472,7 @@ export function TournamentDetail() {
               </thead>
               <tbody>
                 {displayEntries.map((entry, idx) => {
-                  const isMyPick = entry.golfer_id === myPickedGolferId || entry.partner_golfer_id === myPickedGolferId;
+                  const isMyPick = myPickedGolferId !== null && (entry.golfer_id === myPickedGolferId || entry.partner_golfer_id === myPickedGolferId);
                   const isFaded = isWithdrawnOrCut(entry);
                   const isExpanded = expandedGolferId === entry.golfer_id;
 

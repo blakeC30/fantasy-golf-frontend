@@ -33,7 +33,7 @@ export function StandingsTable({ rows, limit }: Props) {
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200">
       <table className="min-w-full text-sm">
-        <thead className="bg-green-900 text-white">
+        <thead className="bg-gradient-to-r from-green-900 to-green-700 text-white">
           <tr>
             <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold w-12">Pos</th>
             <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Player</th>

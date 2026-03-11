@@ -6,9 +6,9 @@
  * Non-managers are redirected to the league dashboard.
  */
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useDropdownDirection } from "../hooks/useDropdownDirection";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   useApproveRequest,
   useDeleteLeague,
@@ -23,6 +23,13 @@ import {
   useUpdateMemberRole,
 } from "../hooks/useLeague";
 import { useAdminOverridePick, useAllPicks, useTournamentField, useTournaments } from "../hooks/usePick";
+import {
+  useBracket,
+  useCreatePlayoffConfig,
+  usePlayoffConfig,
+  useRevisePlayoffPick,
+  useUpdatePlayoffConfig,
+} from "../hooks/usePlayoff";
 import { fmtTournamentName, isoWeekKey } from "../utils";
 import { useAuthStore } from "../store/authStore";
 
@@ -239,9 +246,9 @@ export function ManageLeague() {
   const [multipliers, setMultipliers] = useState<Record<string, number>>({});
   const [scheduleSaved, setScheduleSaved] = useState(false);
 
-  // Initialize checkboxes + multipliers from the server's saved schedule exactly
-  // once per mount. Using a ref flag prevents background React Query refetches
-  // from overwriting the user's unsaved changes.
+  // Initialize checkboxes, multipliers, and playoff flags from the server's saved
+  // schedule exactly once per mount. Using a ref flag prevents background React
+  // Query refetches from overwriting the user's unsaved changes.
   const initializedRef = useRef(false);
   useEffect(() => {
     if (leagueTournaments && !initializedRef.current) {
@@ -257,16 +264,6 @@ export function ManageLeague() {
   const allTournamentsById = Object.fromEntries(
     (allTournaments ?? []).map((t) => [t.id, t])
   );
-
-  function toggleTournament(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    setScheduleSaved(false);
-  }
 
   function setMultiplierFor(id: string, value: number) {
     setMultipliers((prev) => ({ ...prev, [id]: value }));
@@ -352,6 +349,119 @@ export function ManageLeague() {
     setTimeout(() => setReviseSaved(false), 4000);
   }
 
+  // ---------------------------------------------------------------------------
+  // Playoff state
+  // ---------------------------------------------------------------------------
+  const { data: playoffConfig, isError: playoffConfigNotFound } = usePlayoffConfig(leagueId!);
+  const { data: bracket } = useBracket(leagueId!);
+  const createPlayoffConfig = useCreatePlayoffConfig(leagueId!);
+  const updatePlayoffConfig = useUpdatePlayoffConfig(leagueId!);
+  const revisePlayoffPick = useRevisePlayoffPick(leagueId!);
+
+  const [playoffEditing, setPlayoffEditing] = useState(false);
+  const [playoffSize, setPlayoffSize] = useState(0);
+  const [draftStyle, setDraftStyle] = useState<"snake" | "linear" | "top_seed_priority">("snake");
+  const [picksPerRound, setPicksPerRound] = useState<number[]>([]);
+  const [playoffSaved, setPlayoffSaved] = useState(false);
+  const [playoffSaveError, setPlayoffSaveError] = useState("");
+
+  // Revise playoff pick state
+  const [poReviseRoundId, setPoReviseRoundId] = useState<number | null>(null);
+  const [poReviseUserId, setPoReviseUserId] = useState<string | null>(null);
+  const [poRevisePickId, setPoRevisePickId] = useState<string | null>(null);
+  const [poReviseGolferId, setPoReviseGolferId] = useState<string>("none");
+  const [poReviseSaved, setPoReviseSaved] = useState(false);
+
+  const playoffInitializedRef = useRef(false);
+  useEffect(() => {
+    if (playoffConfig && !playoffInitializedRef.current) {
+      setPlayoffSize(playoffConfig.playoff_size);
+      setDraftStyle(playoffConfig.draft_style as "snake" | "linear" | "top_seed_priority");
+      setPicksPerRound(playoffConfig.picks_per_round);
+      playoffInitializedRef.current = true;
+    }
+  }, [playoffConfig]);
+
+  // Number of playoff tournament rounds required for the selected bracket size.
+  const REQUIRED_ROUNDS: Record<number, number> = { 2: 1, 4: 2, 8: 3, 16: 4, 32: 4 };
+  const requiredPlayoffTournaments = REQUIRED_ROUNDS[playoffSize] ?? 0;
+
+  // Count of approved members — playoff size cannot exceed this.
+  const approvedCount = members?.filter((m) => m.status === "approved").length ?? 0;
+
+  // When playoff size changes, resize picksPerRound to match the new round count.
+  function handlePlayoffSizeChange(newSize: number) {
+    setPlayoffSize(newSize);
+    if (newSize === 0) {
+      setPicksPerRound([]);
+    } else {
+      const n = REQUIRED_ROUNDS[newSize] ?? 1;
+      setPicksPerRound((prev) => {
+        if (prev.length === n) return prev;
+        if (prev.length < n) {
+          const fill = Math.min(2, Math.max(1, prev[prev.length - 1] ?? 2));
+          return [...prev, ...Array(n - prev.length).fill(fill)];
+        }
+        return prev.slice(0, n);
+      });
+    }
+    setPlayoffSaved(false);
+  }
+
+  function handleCancelPlayoff() {
+    if (playoffConfig) {
+      setPlayoffSize(playoffConfig.playoff_size);
+      setDraftStyle(playoffConfig.draft_style as "snake" | "linear" | "top_seed_priority");
+      setPicksPerRound(playoffConfig.picks_per_round);
+    }
+    setPlayoffSaveError("");
+    setPlayoffEditing(false);
+  }
+
+  async function handleSavePlayoff() {
+    setPlayoffSaveError("");
+    // Size 0 = "No playoff" — if a config exists, persist the change; otherwise just close.
+    if (playoffSize === 0) {
+      if (playoffConfig) {
+        try {
+          await updatePlayoffConfig.mutateAsync({ playoff_size: 0 });
+        } catch (e) {
+          const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          setPlayoffSaveError(msg ?? "Failed to save playoff settings.");
+          return;
+        }
+      }
+      setPlayoffEditing(false);
+      return;
+    }
+    if (eligibleFutureTournaments < requiredPlayoffTournaments) {
+      setPlayoffSaveError(
+        `Schedule needs ${requiredPlayoffTournaments} future tournament(s) for a ${playoffSize}-member bracket; ${eligibleFutureTournaments} available.`
+      );
+      return;
+    }
+    try {
+      if (!playoffConfig) {
+        await createPlayoffConfig.mutateAsync({
+          playoff_size: playoffSize,
+          draft_style: draftStyle,
+          picks_per_round: picksPerRound,
+        });
+      } else {
+        await updatePlayoffConfig.mutateAsync({
+          playoff_size: playoffSize,
+          draft_style: draftStyle,
+          picks_per_round: picksPerRound,
+        });
+      }
+      setPlayoffSaved(true);
+      setPlayoffEditing(false);
+    } catch (e) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setPlayoffSaveError(msg ?? "Failed to save playoff settings.");
+    }
+  }
+
   // Group all tournaments by month, sorted earliest to latest within each group.
   const byMonth = allTournaments?.reduce<Record<string, typeof allTournaments>>((acc, t) => {
     const key = t.start_date.slice(0, 7); // "YYYY-MM"
@@ -370,6 +480,133 @@ export function ManageLeague() {
     }
     return [...counts.values()].some((c) => c > 1);
   })();
+
+  // The next upcoming scheduled tournament — the current week's pick tournament.
+  const nextUpcomingTournamentId = (() => {
+    const scheduled = (allTournaments ?? [])
+      .filter((t) => t.status === "scheduled")
+      .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    return scheduled[0]?.id ?? null;
+  })();
+
+  // Eligible future tournaments from SAVED schedule (for playoff section advisory).
+  const eligibleFutureTournaments = useMemo(
+    () => (leagueTournaments ?? []).filter(
+      (t) => t.status === "scheduled" && t.id !== nextUpcomingTournamentId
+    ).length,
+    [leagueTournaments, nextUpcomingTournamentId]
+  );
+
+  // Eligible future tournaments from EDITING state (for schedule save blocking).
+  const editingEligibleFutureTournaments = useMemo(
+    () => (allTournaments ?? []).filter(
+      (t) => selectedIds.has(t.id) && t.status === "scheduled" && t.id !== nextUpcomingTournamentId
+    ).length,
+    [allTournaments, selectedIds, nextUpcomingTournamentId]
+  );
+
+  const hasPlayoffScheduleError = useMemo(() => {
+    if (!playoffConfig || playoffConfig.status !== "pending") return false;
+    // Use the currently-editing size if the user is mid-edit; unsaved changes take precedence.
+    const effectiveSize = playoffEditing ? playoffSize : playoffConfig.playoff_size;
+    if (effectiveSize === 0) return false;
+    const required = REQUIRED_ROUNDS[effectiveSize] ?? 0;
+    return required > 0 && editingEligibleFutureTournaments < required;
+  }, [playoffConfig, playoffEditing, playoffSize, editingEligibleFutureTournaments]);
+
+  // Map<tournamentId, playoffRoundNumber> for the EDITING state.
+  // Playoff rounds = last N scheduled tournaments in the selected set.
+  const editingPlayoffRoundMap = useMemo((): Map<string, number> => {
+    if (!playoffConfig || playoffConfig.playoff_size === 0) return new Map();
+    const required = REQUIRED_ROUNDS[playoffConfig.playoff_size] ?? 0;
+    if (required === 0) return new Map();
+    const scheduled = (allTournaments ?? [])
+      .filter((t) => selectedIds.has(t.id) && t.status === "scheduled" && t.id !== nextUpcomingTournamentId)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    const playoffSlice = scheduled.slice(-required);
+    return new Map(playoffSlice.map((t, i) => [t.id, i + 1]));
+  }, [allTournaments, selectedIds, playoffConfig, nextUpcomingTournamentId]);
+
+  // Same map for the SAVED schedule (non-editing display).
+  const savedPlayoffRoundMap = useMemo((): Map<string, number> => {
+    if (!playoffConfig || playoffConfig.playoff_size === 0) return new Map();
+    const required = REQUIRED_ROUNDS[playoffConfig.playoff_size] ?? 0;
+    if (required === 0) return new Map();
+    const scheduled = (leagueTournaments ?? [])
+      .filter((t) => t.status === "scheduled" && t.id !== nextUpcomingTournamentId)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    const playoffSlice = scheduled.slice(-required);
+    return new Map(playoffSlice.map((t, i) => [t.id, i + 1]));
+  }, [leagueTournaments, playoffConfig, nextUpcomingTournamentId]);
+
+  // Playoff revise pick — derived from live bracket data
+  const poActiveRounds = useMemo(
+    () => (bracket?.rounds ?? []).filter((r) => r.status !== "pending"),
+    [bracket]
+  );
+
+  const poReviseRound = useMemo(
+    () => poActiveRounds.find((r) => r.id === poReviseRoundId) ?? null,
+    [poActiveRounds, poReviseRoundId]
+  );
+
+  // All distinct pod members in the selected round
+  const poReviseMembers = useMemo(() => {
+    if (!poReviseRound) return [];
+    const seen = new Set<string>();
+    const result: { userId: string; displayName: string }[] = [];
+    for (const pod of poReviseRound.pods) {
+      for (const m of pod.members) {
+        if (!seen.has(m.user_id)) {
+          seen.add(m.user_id);
+          result.push({ userId: m.user_id, displayName: m.display_name });
+        }
+      }
+    }
+    return result.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [poReviseRound]);
+
+  // Picks belonging to the selected member in the selected round
+  const poRevisePickOptions = useMemo(() => {
+    if (!poReviseRound || !poReviseUserId) return [];
+    const picks = [];
+    for (const pod of poReviseRound.pods) {
+      for (const member of pod.members) {
+        if (member.user_id === poReviseUserId) {
+          const memberPicks = pod.picks.filter((p) => p.pod_member_id === member.id);
+          picks.push(...memberPicks);
+        }
+      }
+    }
+    return picks.sort((a, b) => a.draft_slot - b.draft_slot);
+  }, [poReviseRound, poReviseUserId]);
+
+  const poReviseTournamentId = poReviseRound?.tournament_id ?? undefined;
+  const { data: poReviseField, isLoading: poReviseFieldLoading } = useTournamentField(poReviseTournamentId);
+
+  // Pre-fill golfer dropdown when pick changes
+  useEffect(() => {
+    const currentPick = poRevisePickOptions.find((p) => p.id === poRevisePickId);
+    setPoReviseGolferId(currentPick ? currentPick.golfer_id : "none");
+    revisePlayoffPick.reset();
+    setPoReviseSaved(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poRevisePickId]);
+
+  // Reset picks when member/round changes
+  useEffect(() => {
+    setPoRevisePickId(null);
+    setPoReviseGolferId("none");
+    setPoReviseSaved(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poReviseRoundId, poReviseUserId]);
+
+  async function handleSavePoRevisePick() {
+    if (!poRevisePickId || poReviseGolferId === "none") return;
+    await revisePlayoffPick.mutateAsync({ pickId: poRevisePickId, golferId: poReviseGolferId });
+    setPoReviseSaved(true);
+    setTimeout(() => setPoReviseSaved(false), 4000);
+  }
 
   // Current user's role — redirect non-managers back to the league dashboard.
   const myMembership = members?.find((m) => m.user_id === currentUser?.id);
@@ -390,6 +627,7 @@ export function ManageLeague() {
         </p>
         <h1 className="text-3xl font-bold text-gray-900">{league?.name ?? "League Management"}</h1>
       </div>
+
 
       {/* Invite link — manager only */}
       {isManager && league && (
@@ -629,7 +867,7 @@ export function ManageLeague() {
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-100">
             <table className="min-w-full text-sm">
-              <thead className="bg-green-900 text-white">
+              <thead className="bg-gradient-to-r from-green-900 to-green-700 text-white">
                 <tr>
                   <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Name</th>
                   <th className="hidden sm:table-cell px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold">Email</th>
@@ -719,8 +957,8 @@ export function ManageLeague() {
             )}
           </div>
           <p className="text-sm text-gray-500">
-            Select which PGA Tour events count for your league. Picks and standings
-            are scoped to only these tournaments.
+            Select which PGA Tour events count for your league. If playoffs are configured,
+            the final scheduled tournaments in your schedule will automatically be used as playoff rounds.
           </p>
           {scheduleSaved && !scheduleEditing && (
             <p className="text-sm text-green-700 font-medium">✓ Schedule saved.</p>
@@ -759,24 +997,42 @@ export function ManageLeague() {
                                 const checked = selectedIds.has(t.id);
                                 const isPast = t.status === "completed";
                                 const effectiveMultiplier = multipliers[t.id] ?? t.multiplier;
+                                const playoffRound = checked
+                                  ? (scheduleEditing ? editingPlayoffRoundMap : savedPlayoffRoundMap).get(t.id) ?? null
+                                  : null;
                                 return (
                                   <div
                                     key={t.id}
                                     className={`flex items-center gap-3 px-4 py-3 ${
-                                      scheduleEditing ? "cursor-pointer hover:bg-gray-100" : "cursor-default"
-                                    } ${isPast ? "opacity-50" : ""} ${hasWeekConflict && checked ? "bg-amber-50" : ""}`}
-                                    onClick={() => scheduleEditing && toggleTournament(t.id)}
+                                      isPast ? "opacity-50" : ""
+                                    } ${hasWeekConflict && checked ? "bg-amber-50" : ""}`}
                                   >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() => {}}
-                                      disabled={!scheduleEditing}
-                                      className="accent-green-800 h-4 w-4 flex-shrink-0 disabled:opacity-60 pointer-events-none"
-                                    />
+                                    <label className={`flex items-center gap-1 flex-shrink-0 ${scheduleEditing ? "cursor-pointer" : "cursor-default"}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        disabled={!scheduleEditing}
+                                        onChange={() => {
+                                          setSelectedIds((prev) => {
+                                            const n = new Set(prev);
+                                            if (checked) n.delete(t.id); else n.add(t.id);
+                                            return n;
+                                          });
+                                          setScheduleSaved(false);
+                                        }}
+                                        className="accent-green-800 h-4 w-4 disabled:opacity-60"
+                                      />
+                                    </label>
+
                                     <span className="flex-1 text-sm text-gray-900">{fmtTournamentName(t.name)}</span>
 
-                                    {/* Multiplier — picker when editing + checked, badge otherwise */}
+                                    {playoffRound !== null && (
+                                      <span className="flex-shrink-0 text-xs font-semibold w-12 text-center py-0.5 rounded bg-violet-100 text-violet-700">
+                                        PO R{playoffRound}
+                                      </span>
+                                    )}
+
+                                    {/* Multiplier — picker when editing and checked, badge otherwise */}
                                     {checked && scheduleEditing ? (
                                       <div
                                         className="flex items-center gap-1 flex-shrink-0"
@@ -813,7 +1069,6 @@ export function ManageLeague() {
                                       </span>
                                     ) : null}
                                     <span className="hidden sm:block text-xs text-gray-400 flex-shrink-0">{t.start_date}</span>
-
                                   </div>
                                 );
                               })}
@@ -839,11 +1094,22 @@ export function ManageLeague() {
                 })}
             </div>
           )}
+          {scheduleEditing && hasPlayoffScheduleError && (() => {
+            const required = REQUIRED_ROUNDS[playoffConfig?.playoff_size ?? 0] ?? 0;
+            return (
+              <div className="flex items-start gap-2 px-1 text-xs text-red-600">
+                <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <span>Your playoff bracket needs {required} future tournament(s); schedule only has {editingEligibleFutureTournaments} eligible.</span>
+              </div>
+            );
+          })()}
           {scheduleEditing && (
             <div className="flex items-center gap-3 pt-2">
               <button
                 onClick={handleSaveSchedule}
-                disabled={updateSchedule.isPending || hasScheduleConflicts}
+                disabled={updateSchedule.isPending || hasScheduleConflicts || hasPlayoffScheduleError}
                 className="bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
               >
                 {updateSchedule.isPending ? "Saving…" : "Save Schedule"}
@@ -856,6 +1122,271 @@ export function ManageLeague() {
               </button>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Playoff Configuration — manager only */}
+      {isManager && (
+        <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <SectionIcon>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
+                </svg>
+              </SectionIcon>
+              <h2 className="text-base font-bold text-gray-900">Playoff</h2>
+            </div>
+            {!playoffEditing && (playoffConfig || playoffConfigNotFound) && (
+              <button
+                onClick={() => { setPlayoffEditing(true); setPlayoffSaved(false); }}
+                className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">
+            Configure the bracket size and picks per round. The final scheduled tournaments in your season will automatically serve as playoff rounds.
+          </p>
+
+          {playoffSaved && !playoffEditing && (
+            <p className="text-sm text-green-700 font-medium">✓ Playoff settings saved.</p>
+          )}
+
+          {/* Playoff tournament count advisory — only shown when schedule is insufficient */}
+          {playoffSize > 0 && (playoffEditing || playoffConfig) && eligibleFutureTournaments < requiredPlayoffTournaments && (
+            <div className="text-sm px-4 py-2.5 rounded-xl border bg-amber-50 border-amber-200 text-amber-700">
+              A <strong>{playoffSize}-member</strong> bracket needs{" "}
+              <strong>{requiredPlayoffTournaments}</strong> future tournament{requiredPlayoffTournaments !== 1 ? "s" : ""} —{" "}
+              your schedule has <strong>{eligibleFutureTournaments}</strong> eligible. Add more future tournaments to the schedule above.
+            </div>
+          )}
+
+          {/* Settings grid */}
+          <div className="bg-gray-50 rounded-xl border border-gray-100 divide-y divide-gray-100">
+            {/* Playoff size */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3">
+              <span className="text-sm text-gray-500 sm:w-44 flex-shrink-0">Playoff size</span>
+              {playoffEditing && (!playoffConfig || playoffConfig.status === "pending") ? (
+                <div className="flex gap-1.5 flex-wrap">
+                  {[0, 2, 4, 8, 16, 32].map((size) => {
+                    const tooLarge = size > 0 && size > approvedCount && approvedCount > 0;
+                    return (
+                    <button
+                      key={size}
+                      type="button"
+                      disabled={tooLarge}
+                      title={tooLarge ? `League only has ${approvedCount} approved member(s)` : undefined}
+                      onClick={() => handlePlayoffSizeChange(size)}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                        playoffSize === size ? "bg-green-800 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                      }`}
+                    >
+                      {size === 0 ? "No playoff" : `${size} members`}
+                    </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="text-sm font-medium text-gray-900">{playoffSize === 0 ? "No playoff" : `${playoffSize} members`}</span>
+              )}
+            </div>
+
+            {/* Draft style */}
+            {playoffSize > 0 && <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4 px-4 py-3">
+              <span className="text-sm text-gray-500 sm:w-44 flex-shrink-0 sm:pt-0.5">Draft style</span>
+              {playoffEditing && (!playoffConfig || playoffConfig.status === "pending") ? (
+                <div className="flex flex-col gap-1.5">
+                  {(["snake", "linear", "top_seed_priority"] as const).map((style) => {
+                    const labels: Record<string, string> = {
+                      snake: "Snake",
+                      linear: "Linear",
+                      top_seed_priority: "Top seed priority",
+                    };
+                    const descs: Record<string, string> = {
+                      snake: "Draft order reverses each round",
+                      linear: "Same order every round",
+                      top_seed_priority: "Highest seed always picks first",
+                    };
+                    return (
+                      <label key={style} className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="draftStyle"
+                          value={style}
+                          checked={draftStyle === style}
+                          onChange={() => { setDraftStyle(style); setPlayoffSaved(false); }}
+                          className="mt-0.5 accent-green-700"
+                        />
+                        <span className="text-sm">
+                          <span className="font-medium text-gray-800">{labels[style]}</span>
+                          <span className="text-gray-400 ml-1.5">{descs[style]}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="text-sm font-medium text-gray-900">
+                  {{ snake: "Snake", linear: "Linear", top_seed_priority: "Top seed priority" }[draftStyle] ?? draftStyle}
+                </span>
+              )}
+            </div>}
+
+            {/* Per-round picks — one row per round, count driven by playoff size */}
+            {playoffSize > 0 && picksPerRound.map((picks, i) => (
+              <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3">
+                <span className="text-sm text-gray-500 sm:w-44 flex-shrink-0">Round {i + 1} picks / member</span>
+                {playoffEditing && (!playoffConfig || playoffConfig.status === "pending") ? (
+                  <div className="flex gap-1.5">
+                    {[1, 2].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => {
+                          setPicksPerRound((prev) => prev.map((v, j) => j === i ? n : v));
+                          setPlayoffSaved(false);
+                        }}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                          picks === n ? "bg-green-800 text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-sm font-medium text-gray-900">{picks}</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* No config yet */}
+          {!playoffConfig && playoffConfigNotFound && !playoffEditing && (
+            <p className="text-sm text-gray-400">No playoff configured yet. Click Edit to set up.</p>
+          )}
+
+          {/* Save / Cancel */}
+          {playoffEditing && (
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={handleSavePlayoff}
+                disabled={createPlayoffConfig.isPending || updatePlayoffConfig.isPending || (playoffSize > 0 && eligibleFutureTournaments < requiredPlayoffTournaments)}
+                className="bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
+              >
+                {(createPlayoffConfig.isPending || updatePlayoffConfig.isPending) ? "Saving…" : "Save Playoff Settings"}
+              </button>
+              <button
+                onClick={handleCancelPlayoff}
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {playoffSaveError && <p className="text-xs text-red-600">{playoffSaveError}</p>}
+
+          {/* Revise Playoff Pick — shown once bracket is seeded and a round has started */}
+          {poActiveRounds.length > 0 && (
+            <div className="pt-2 border-t border-gray-100 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Revise Playoff Pick</p>
+                <p className="text-xs text-gray-400 mt-0.5">Override a member's pick in any active playoff round.</p>
+              </div>
+
+              <div className="grid sm:grid-cols-4 gap-3">
+                {/* Round */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Round</label>
+                  <DropdownSelect
+                    value={poReviseRoundId?.toString() ?? ""}
+                    onChange={(val) => { setPoReviseRoundId(val ? Number(val) : null); setPoReviseUserId(null); }}
+                    placeholder="Select round…"
+                    options={poActiveRounds.map((r) => ({
+                      value: r.id.toString(),
+                      label: `Round ${r.round_number}${r.tournament_name ? ` — ${r.tournament_name}` : ""}`,
+                      badge: r.status === "completed" ? "Final" : r.status === "scoring" ? "Scoring" : r.status === "locked" ? "Locked" : "Active",
+                      badgeColor: r.status === "completed" ? "bg-gray-100 text-gray-500" : "bg-green-100 text-green-700",
+                    }))}
+                  />
+                </div>
+
+                {/* Member */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Member</label>
+                  <DropdownSelect
+                    value={poReviseUserId ?? ""}
+                    onChange={(val) => setPoReviseUserId(val || null)}
+                    placeholder="Select member…"
+                    options={poReviseMembers.map((m) => ({ value: m.userId, label: m.displayName }))}
+                  />
+                </div>
+
+                {/* Pick slot */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pick slot</label>
+                  <DropdownSelect
+                    value={poRevisePickId ?? ""}
+                    onChange={(val) => setPoRevisePickId(val || null)}
+                    placeholder="Select pick…"
+                    options={poRevisePickOptions.map((p) => ({
+                      value: p.id,
+                      label: `Pick ${p.draft_slot} — ${p.golfer_name}`,
+                    }))}
+                  />
+                </div>
+
+                {/* Golfer */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Golfer</label>
+                  <DropdownSelect
+                    value={poReviseGolferId}
+                    onChange={(val) => { setPoReviseGolferId(val); setPoReviseSaved(false); }}
+                    placeholder="Select golfer…"
+                    disabled={!poRevisePickId || poReviseFieldLoading}
+                    options={[
+                      { value: "none", label: "No pick" },
+                      ...(poReviseField
+                        ?.slice()
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((g) => ({ value: g.id, label: g.name })) ?? []),
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSavePoRevisePick}
+                  disabled={
+                    !poRevisePickId ||
+                    poReviseGolferId === "none" ||
+                    revisePlayoffPick.isPending ||
+                    poReviseGolferId === (poRevisePickOptions.find((p) => p.id === poRevisePickId)?.golfer_id ?? "")
+                  }
+                  className="bg-green-800 hover:bg-green-700 disabled:opacity-40 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
+                >
+                  {revisePlayoffPick.isPending ? "Saving…" : "Save Pick"}
+                </button>
+                {poReviseSaved && !revisePlayoffPick.isPending && (
+                  <div className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    Pick saved successfully.
+                  </div>
+                )}
+                {revisePlayoffPick.isError && (
+                  <p className="text-sm text-red-600">
+                    {(revisePlayoffPick.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed to update pick."}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
         </section>
       )}
 

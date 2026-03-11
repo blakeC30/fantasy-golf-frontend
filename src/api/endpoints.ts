@@ -55,8 +55,7 @@ export interface Tournament {
   is_team_event: boolean;
 }
 
-// Returned by GET /leagues/{id}/tournaments — includes the league's effective
-// multiplier, which resolves to the per-league override or the global default.
+// Returned by GET /leagues/{id}/tournaments — includes the league's effective multiplier.
 export interface LeagueTournamentOut extends Tournament {
   effective_multiplier: number;
 }
@@ -80,6 +79,7 @@ export interface Pick {
   is_locked: boolean; // true once the golfer's Round 1 tee time has passed
   position: number | null; // golfer's current or final position; null if not started
   is_tied: boolean; // true when multiple golfers share this position
+  golfer_status: string | null; // e.g. "CUT", "WD", "DQ"; null if active/finished normally
   golfer: Golfer;
   tournament: Tournament;
 }
@@ -198,6 +198,37 @@ export interface TournamentPicksSummary {
   picks_by_golfer: GolferPickGroup[]; // sorted by pick_count desc
   no_pick_members: { user_id: string; display_name: string }[];
   winner: { golfer_name: string; pick_count: number } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Playoff my-pod / my-picks types (new endpoints)
+// ---------------------------------------------------------------------------
+
+export interface MyPlayoffPodOut {
+  is_playoff_week: boolean;
+  is_in_playoffs: boolean;
+  active_pod_id: number | null;
+  active_round_number: number | null;
+  tournament_id: string | null;
+  round_status: string | null; // "drafting" | "locked" | null
+  has_submitted: boolean;
+  submitted_count: number;
+  picks_per_round: number | null;
+  required_preference_count: number | null;
+  deadline: string | null;
+}
+
+export interface PlayoffPickSummary {
+  golfer_name: string;
+  points_earned: number | null;
+}
+
+export interface PlayoffTournamentPickOut {
+  tournament_id: string;
+  round_number: number;
+  status: string;
+  picks: PlayoffPickSummary[];
+  total_points: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +396,106 @@ export const standingsApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Playoff types (mirror app/schemas/playoff.py)
+// ---------------------------------------------------------------------------
+
+export interface PlayoffConfigOut {
+  id: string;
+  league_id: string;
+  season_id: number;
+  is_enabled: boolean;
+  playoff_size: number;
+  draft_style: "snake" | "linear" | "top_seed_priority";
+  picks_per_round: number[];
+  status: "pending" | "seeded" | "active" | "completed";
+  seeded_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlayoffConfigCreate {
+  playoff_size?: number;
+  draft_style?: "snake" | "linear" | "top_seed_priority";
+  picks_per_round?: number[];
+}
+
+export interface PlayoffConfigUpdate extends Partial<PlayoffConfigCreate> {}
+
+export interface PlayoffPodMemberOut {
+  id: number;
+  user_id: string;
+  display_name: string;
+  seed: number;
+  draft_position: number;
+  total_points: number | null;
+  is_eliminated: boolean;
+}
+
+export interface PlayoffPickOut {
+  id: string;
+  pod_member_id: number; // integer FK to playoff_pod_members.id
+  golfer_id: string;
+  golfer_name: string;
+  draft_slot: number;
+  points_earned: number | null;
+  created_at: string;
+}
+
+export interface PlayoffPodOut {
+  id: number;
+  bracket_position: number;
+  status: "pending" | "drafting" | "scoring" | "completed";
+  winner_user_id: string | null;
+  members: PlayoffPodMemberOut[];
+  picks: PlayoffPickOut[];
+  active_draft_slot: number | null;
+}
+
+export interface PlayoffRoundOut {
+  id: number;
+  round_number: number;
+  tournament_id: string | null;
+  tournament_name: string | null;
+  draft_opens_at: string | null;
+  draft_resolved_at: string | null;
+  status: "pending" | "drafting" | "locked" | "scoring" | "completed";
+  pods: PlayoffPodOut[];
+}
+
+export interface BracketOut {
+  playoff_config: PlayoffConfigOut;
+  rounds: PlayoffRoundOut[];
+}
+
+export interface PlayoffRoundAssign {
+  tournament_id: string;
+  draft_opens_at?: string; // ISO datetime; optional — backend defaults to null
+}
+
+export interface PlayoffPreference {
+  golfer_id: string;
+  golfer_name: string;
+  rank: number;
+}
+
+export interface PlayoffPodMemberDraft {
+  user_id: string;
+  display_name: string;
+  seed: number;
+  draft_position: number;
+  has_submitted: boolean;
+  preference_count: number;
+}
+
+export interface PlayoffDraftStatus {
+  pod_id: number; // integer ID
+  round_status: string;
+  deadline: string;
+  members: PlayoffPodMemberDraft[];
+  resolved_picks: PlayoffPickOut[];
+}
+
+// ---------------------------------------------------------------------------
 // Admin
 // ---------------------------------------------------------------------------
 
@@ -377,4 +508,60 @@ export const adminApi = {
 
   syncTournamentForce: (pgaTourId: string) =>
     api.post(`/admin/sync/${pgaTourId}`, null, { params: { force: true } }).then((r) => r.data),
+};
+
+// ---------------------------------------------------------------------------
+// Playoff
+// ---------------------------------------------------------------------------
+
+export const playoffApi = {
+  getConfig: (leagueId: string) =>
+    api.get<PlayoffConfigOut>(`/leagues/${leagueId}/playoff/config`).then((r) => r.data),
+
+  createConfig: (leagueId: string, data: PlayoffConfigCreate) =>
+    api.post<PlayoffConfigOut>(`/leagues/${leagueId}/playoff/config`, data).then((r) => r.data),
+
+  updateConfig: (leagueId: string, data: PlayoffConfigUpdate) =>
+    api.patch<PlayoffConfigOut>(`/leagues/${leagueId}/playoff/config`, data).then((r) => r.data),
+
+
+
+  getBracket: (leagueId: string) =>
+    api.get<BracketOut>(`/leagues/${leagueId}/playoff/bracket`).then((r) => r.data),
+
+  openDraft: (leagueId: string, roundId: number) =>
+    api.post<PlayoffRoundOut>(`/leagues/${leagueId}/playoff/rounds/${roundId}/open`).then((r) => r.data),
+
+  resolveDraft: (leagueId: string, roundId: number) =>
+    api.post<PlayoffRoundOut>(`/leagues/${leagueId}/playoff/rounds/${roundId}/resolve`).then((r) => r.data),
+
+  scoreRound: (leagueId: string, roundId: number) =>
+    api.post<PlayoffRoundOut>(`/leagues/${leagueId}/playoff/rounds/${roundId}/score`).then((r) => r.data),
+
+  advance: (leagueId: string, roundId: number) =>
+    api.post<BracketOut>(`/leagues/${leagueId}/playoff/rounds/${roundId}/advance`).then((r) => r.data),
+
+  getPod: (leagueId: string, podId: number) =>
+    api.get<PlayoffPodOut>(`/leagues/${leagueId}/playoff/pods/${podId}`).then((r) => r.data),
+
+  getDraftStatus: (leagueId: string, podId: number) =>
+    api.get<PlayoffDraftStatus>(`/leagues/${leagueId}/playoff/pods/${podId}/draft`).then((r) => r.data),
+
+  getPreferences: (leagueId: string, podId: number) =>
+    api.get<PlayoffPreference[]>(`/leagues/${leagueId}/playoff/pods/${podId}/preferences`).then((r) => r.data),
+
+  submitPreferences: (leagueId: string, podId: number, golfer_ids: string[]) =>
+    api.put<PlayoffPreference[]>(`/leagues/${leagueId}/playoff/pods/${podId}/preferences`, { golfer_ids }).then((r) => r.data),
+
+  overrideResult: (leagueId: string, data: { pod_id: number; winner_user_id: string }) =>
+    api.post<{ detail: string }>(`/leagues/${leagueId}/playoff/override`, data).then((r) => r.data),
+
+  revisePick: (leagueId: string, pickId: string, golferId: string) =>
+    api.patch<PlayoffPickOut>(`/leagues/${leagueId}/playoff/picks/${pickId}`, { golfer_id: golferId }).then((r) => r.data),
+
+  getMyPod: (leagueId: string) =>
+    api.get<MyPlayoffPodOut>(`/leagues/${leagueId}/playoff/my-pod`).then((r) => r.data),
+
+  getMyPicks: (leagueId: string) =>
+    api.get<PlayoffTournamentPickOut[]>(`/leagues/${leagueId}/playoff/my-picks`).then((r) => r.data),
 };

@@ -100,6 +100,7 @@ export function CreateLeague() {
       const schedule = [...selectedIds].map((id) => ({
         tournament_id: id,
         multiplier: multipliers[id] ?? null,
+        is_playoff: false,
       }));
       if (schedule.length > 0) {
         await leaguesApi.updateTournaments(league.id, schedule);

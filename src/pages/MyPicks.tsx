@@ -12,6 +12,8 @@ import { GolferAvatar } from "../components/GolferAvatar";
 import { FlagIcon } from "../components/FlagIcon";
 import { fmtTournamentName } from "../utils";
 import { useDropdownDirection } from "../hooks/useDropdownDirection";
+import { useMyPlayoffPod, useMyPlayoffPicks, useBracket } from "../hooks/usePlayoff";
+import type { PlayoffTournamentPickOut } from "../hooks/usePlayoff";
 
 function formatPoints(pts: number | null): string {
   if (pts === null) return "—";
@@ -90,6 +92,9 @@ export function MyPicks() {
   const { data: leagueTournaments } = useLeagueTournaments(leagueId!);
   const { data: league } = useLeague(leagueId!);
   const { data: myPicksData, isLoading } = useMyPicks(leagueId!);
+  const { data: myPlayoffPicks } = useMyPlayoffPicks(leagueId!);
+  const { data: myPod } = useMyPlayoffPod(leagueId!);
+  const { data: bracket } = useBracket(leagueId!);
   const approvedMembers = members?.filter((m) => m.status === "approved") ?? [];
 
   // Default to the current user; allow switching via dropdown.
@@ -128,6 +133,31 @@ export function MyPicks() {
 
   // Map submitted picks by tournament id for quick lookup
   const picksByTournamentId = new Map(picks?.map((p) => [p.tournament_id, p]) ?? []);
+
+  const playoffPicksByTournamentId = new Map(
+    (myPlayoffPicks ?? []).map((p) => [p.tournament_id, p])
+  );
+
+  type OtherPlayoffEntry = { status: string; picks: { id: string; pod_member_id: number; golfer_id: string; golfer_name: string; draft_slot: number; points_earned: number | null; created_at: string }[]; total_points: number | null };
+
+  // For viewing another member: extract their picks from the bracket
+  const otherMemberPlayoffMap = (() => {
+    if (isViewingSelf || !viewingUserId || !bracket) return new Map<string, OtherPlayoffEntry>();
+    const m = new Map<string, OtherPlayoffEntry>();
+    for (const round of bracket.rounds) {
+      if (!round.tournament_id) continue;
+      for (const pod of round.pods) {
+        const member = pod.members.find((mb) => mb.user_id === viewingUserId);
+        if (!member) continue;
+        m.set(round.tournament_id, {
+          status: round.status,
+          picks: pod.picks.filter((p) => p.pod_member_id === member.id),
+          total_points: member.total_points,
+        });
+      }
+    }
+    return m;
+  })();
 
   // Tournaments that are locked for picks: completed, in progress, or start date already passed.
   const today = new Date().toISOString().slice(0, 10);
@@ -406,29 +436,26 @@ export function MyPicks() {
                       ? (tournament as { effective_multiplier: number }).effective_multiplier
                       : 1;
                     const displayPoints = pick.points_earned;
-                    const missedCut = displayPoints === 0 && tournament.status === "completed";
+                    const golferStatus = pick.golfer_status; // "CUT", "WD", "DQ", or null
                     const showBreakdown = multiplier > 1 && pick.earnings_usd !== null && pick.earnings_usd > 0;
+                    const statusLabel = golferStatus === "CUT" || golferStatus === "MDF" ? "CUT"
+                      : golferStatus === "WD" ? "WD"
+                      : golferStatus === "DQ" ? "DQ"
+                      : null;
                     return (
                       <>
-                        <GolferAvatar
-                          pgaTourId={pick.golfer.pga_tour_id}
-                          name={pick.golfer.name}
-                          className="w-9 h-9"
-                        />
                         <div className="text-right space-y-0.5">
                           <p className="text-sm font-medium text-gray-600">{pick.golfer.name}</p>
                           <p
                             className={`text-lg font-bold leading-tight ${
-                              displayPoints === null
-                                ? "text-gray-300"
-                                : missedCut
+                              statusLabel || displayPoints === null
                                 ? "text-gray-400"
                                 : displayPoints > 0
                                 ? "text-green-700 tabular-nums"
                                 : "text-red-500 tabular-nums"
                             }`}
                           >
-                            {missedCut ? "Missed Cut" : formatPoints(displayPoints)}
+                            {statusLabel ?? formatPoints(displayPoints)}
                           </p>
                           {showBreakdown && (
                             <p className="text-xs text-gray-400 tabular-nums leading-tight">
@@ -436,9 +463,16 @@ export function MyPicks() {
                             </p>
                           )}
                         </div>
+                        <GolferAvatar
+                          pgaTourId={pick.golfer.pga_tour_id}
+                          name={pick.golfer.name}
+                          className="w-9 h-9 shrink-0"
+                        />
                       </>
                     );
-                  })() : (
+                  })() : !isViewingSelf && (tournament.id === liveTournament?.id || tournament.id === nextTournament?.id) ? (
+                    <p className="text-sm font-medium text-gray-400 text-right">Pick hidden</p>
+                  ) : (
                     <div className="text-right space-y-0.5">
                       <p className={`text-sm font-medium ${tournament.status === "scheduled" ? "text-gray-400" : "text-red-400"}`}>
                         {tournament.status === "scheduled" ? "No pick yet" : "No pick"}

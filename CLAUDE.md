@@ -23,7 +23,8 @@ src/
 ├── hooks/
 │   ├── useAuth.ts      # Auth actions (login, register, logout, session bootstrap)
 │   ├── useLeague.ts    # All league/membership/join/tournament-schedule hooks
-│   └── usePick.ts      # Tournaments, picks, standings hooks
+│   ├── usePick.ts      # Tournaments, picks, standings hooks
+│   └── usePlayoff.ts   # Playoff config, bracket, draft, pod, preferences hooks
 ├── pages/
 │   ├── Welcome.tsx         # Public landing page — shown at / for unauthenticated visitors
 │   ├── Login.tsx
@@ -34,7 +35,10 @@ src/
 │   ├── MakePick.tsx        # Golfer selection form for upcoming tournament
 │   ├── MyPicks.tsx         # Season pick history + stat cards
 │   ├── Leaderboard.tsx     # Full standings table with tournament breakdown
-│   ├── ManageLeague.tsx    # Manager panel — invite, settings, members, schedule
+│   ├── ManageLeague.tsx    # Manager panel — invite, settings, members, schedule (single checkbox per tournament), playoff config (auto-uses last N future tournaments as playoff rounds)
+│   ├── ManagePlayoff.tsx   # Manager playoff panel — round operations (open/resolve/score/advance), override; no tournament assignment (auto-assigned at seeding)
+│   ├── PlayoffBracket.tsx  # Public bracket view — all rounds, pods, clickable pod cards
+│   ├── PlayoffDraft.tsx    # Per-pod draft — submission status, preference editor, resolved picks
 │   ├── JoinLeague.tsx      # Invite-link landing page (auth gate + confirm form)
 │   ├── Settings.tsx        # User account settings — display name, league membership
 │   └── PlatformAdmin.tsx   # Platform admin only — data sync trigger
@@ -63,6 +67,9 @@ src/
 /leagues/:leagueId/picks        → MyPicks
 /leagues/:leagueId/leaderboard  → Leaderboard
 /leagues/:leagueId/manage       → ManageLeague (manager only — self-redirects non-managers)
+/leagues/:leagueId/manage/playoff → ManagePlayoff (manager only — playoff config + round operations)
+/leagues/:leagueId/playoff      → PlayoffBracket (all members — scrollable bracket view)
+/leagues/:leagueId/playoff/draft/:podId → PlayoffDraft (all members — submission status + preference editor)
 /leagues/new                    → CreateLeague (auth required — create a new league with schedule)
 /settings                       → Settings (auth required — display name, leave leagues)
 /admin                          → PlatformAdmin (platform admin only)
@@ -89,6 +96,11 @@ Always use these exact key shapes — mismatches cause stale data:
 | `["tournaments", status\|"all"]` | `useTournaments(status?)` |
 | `["tournamentField", tournamentId]` | `useTournamentField(tournamentId)` |
 | `["joinPreview", inviteCode]` | `useJoinPreview(inviteCode)` |
+| `["playoffConfig", leagueId]` | `usePlayoffConfig(leagueId)` |
+| `["playoffBracket", leagueId]` | `useBracket(leagueId)` — auto-refetches every 60s while active |
+| `["playoffPod", leagueId, podId]` | `usePodDetail(leagueId, podId)` |
+| `["playoffDraftStatus", leagueId, podId]` | `usePodDraftStatus(leagueId, podId)` — polls every 30s while drafting |
+| `["playoffPreferences", leagueId, podId]` | `useMyPreferences(leagueId, podId)` |
 
 ## API Conventions
 

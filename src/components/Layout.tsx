@@ -75,7 +75,7 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top nav */}
-      <header className="bg-green-900 text-white shadow-md">
+      <header className="bg-gradient-to-r from-green-900 to-green-700 text-white shadow-md">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link
             to="/leagues"
@@ -154,7 +154,7 @@ export function Layout() {
 
       {/* Mobile bottom tab bar — only rendered inside a league */}
       {leagueId && (
-        <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-green-900 border-t border-green-800 z-50">
+        <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-gradient-to-r from-green-900 to-green-700 border-t border-green-800 z-50">
           <div className="flex h-16">
             {mobileNavTab(
               `/leagues/${leagueId}`,
