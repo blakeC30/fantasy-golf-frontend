@@ -58,6 +58,8 @@ export interface Tournament {
 // Returned by GET /leagues/{id}/tournaments — includes the league's effective multiplier.
 export interface LeagueTournamentOut extends Tournament {
   effective_multiplier: number;
+  // true when tournament is in_progress AND every Round 1 tee time has passed — pick window permanently closed.
+  all_r1_teed_off: boolean;
 }
 
 export interface Golfer {
@@ -66,6 +68,15 @@ export interface Golfer {
   name: string;
   world_ranking: number | null;
   country: string | null;
+}
+
+// Returned by GET /tournaments/{id}/field — extends Golfer with the golfer's
+// Round 1 tee_time from their TournamentEntry row. tee_time is null when tee
+// times haven't been set yet (e.g. early in the week). When the tournament is
+// in_progress, the frontend uses this to grey out golfers who have already teed
+// off, preventing the user from selecting an ineligible golfer before submitting.
+export interface GolferInField extends Golfer {
+  tee_time: string | null;
 }
 
 export interface Pick {
@@ -141,6 +152,8 @@ export interface RoundSummary {
   position: string | null;
   tee_time: string | null;
   is_playoff: boolean;
+  thru: number | null;
+  started_on_back: boolean | null;
 }
 
 export interface LeaderboardEntry {
@@ -336,7 +349,7 @@ export const tournamentsApi = {
     api.get<Tournament>(`/tournaments/${id}`).then((r) => r.data),
 
   field: (id: string) =>
-    api.get<Golfer[]>(`/tournaments/${id}/field`).then((r) => r.data),
+    api.get<GolferInField[]>(`/tournaments/${id}/field`).then((r) => r.data),
 
   leaderboard: (id: string) =>
     api.get<Leaderboard>(`/tournaments/${id}/leaderboard`).then((r) => r.data),
@@ -407,7 +420,7 @@ export interface PlayoffConfigOut {
   playoff_size: number;
   draft_style: "snake" | "linear" | "top_seed_priority";
   picks_per_round: number[];
-  status: "pending" | "seeded" | "active" | "completed";
+  status: "pending" | "active" | "completed";
   seeded_at: string | null;
   created_at: string;
   updated_at: string;
@@ -491,6 +504,7 @@ export interface PlayoffDraftStatus {
   pod_id: number; // integer ID
   round_status: string;
   deadline: string;
+  required_preference_count: number | null; // pod_size * picks_per_round; null until seeded
   members: PlayoffPodMemberDraft[];
   resolved_picks: PlayoffPickOut[];
 }

@@ -6,12 +6,13 @@
  */
 
 import { useState } from "react";
-import type { Golfer, Pick } from "../api/endpoints";
+import type { GolferInField, Pick } from "../api/endpoints";
 import { GolferCard } from "./GolferCard";
 
 interface Props {
-  field: Golfer[];
+  field: GolferInField[];
   usedGolferIds: Set<string>; // golfer IDs already picked this season
+  teedOffGolferIds: Set<string>; // golfer IDs whose Round 1 tee time has passed (in_progress tournaments only)
   existingPick?: Pick; // if the user already has a pick for this tournament
   onSubmit: (golferId: string) => Promise<void>;
   submitting: boolean;
@@ -21,6 +22,7 @@ interface Props {
 export function PickForm({
   field,
   usedGolferIds,
+  teedOffGolferIds,
   existingPick,
   onSubmit,
   submitting,
@@ -63,6 +65,7 @@ export function PickForm({
             golfer={g}
             selected={selected === g.id}
             alreadyUsed={usedGolferIds.has(g.id) && g.id !== existingPick?.golfer_id}
+            alreadyTeedOff={teedOffGolferIds.has(g.id) && g.id !== existingPick?.golfer_id}
             onClick={() => setSelected(g.id)}
           />
         ))}

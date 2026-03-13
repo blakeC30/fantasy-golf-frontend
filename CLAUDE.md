@@ -110,6 +110,23 @@ Always use these exact key shapes — mismatches cause stale data:
 - TypeScript interfaces in `endpoints.ts` mirror backend Pydantic schemas
 - On 401, the Axios interceptor silently refreshes via the httpOnly cookie, then retries. If refresh fails, it clears auth and redirects to `/login` (skips redirect from public pages to avoid loops)
 
+### `LeagueTournamentOut` notable fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `effective_multiplier` | `number` | League-level override or global tournament multiplier (e.g. `2.0` for majors) |
+| `all_r1_teed_off` | `boolean` | `true` when status is `in_progress` AND every Round 1 tee time has already passed. When `true` and the member has no pick, the pick window is permanently closed — hide the pick button entirely and show "Pick window closed" instead. |
+
+### `GolferInField` — field endpoint type
+
+`GET /tournaments/{id}/field` returns `GolferInField[]` (not plain `Golfer[]`). `GolferInField` extends `Golfer` with:
+
+| Field | Type | Notes |
+|---|---|---|
+| `tee_time` | `string \| null` | ISO datetime string (UTC). `null` when tee times haven't been assigned yet. Used by `MakePick` to compute `teedOffGolferIds` when `tournament.status === "in_progress"`. |
+
+**Teed-off filter pattern** (in `MakePick.tsx`): golfers with a `tee_time` in the past are added to `teedOffGolferIds` and passed to `PickForm` → `GolferCard`. They are kept visible in the list but greyed out with a "Teed off" label — same visual treatment as "Used" golfers, but a different label and flag. The existing golfer's pick is always exempt from both flags so the user can still see their current selection.
+
 ## Auth Pattern
 
 - `useAuth()` (from `src/hooks/useAuth.ts`) — the only hook components should call for auth

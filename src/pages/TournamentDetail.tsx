@@ -6,7 +6,7 @@
  * Accessible by clicking any in_progress or completed row on the MyPicks page.
  *
  * Column order (ESPN-style):
- *   Pos | Golfer | Score | R1 | R2 | R3 | R4 | [PO...] | [Earnings]
+ *   Pos | Golfer | Score | [Today | Thru] | R1 | R2 | R3 | R4 | [PO...] | [Earnings]
  *
  * - Score  = total score to par for the tournament (E, -10, +2)
  * - R1–R4  = score to par for that individual round; blank if not yet played
@@ -67,7 +67,7 @@ const RESULT_LABELS: Record<HoleResult, string> = {
   birdie:      "Birdie",
   par:         "Par",
   bogey:       "Bogey",
-  double_bogey:"Dbl Bogey",
+  double_bogey:"Double",
   triple_plus: "Triple+",
 };
 
@@ -104,9 +104,14 @@ function ScorecardPanel({
     }
   }, []);
 
-  // Regular rounds: split into front 9 / back 9 with Out/In subtotals
-  const front = !isPlayoff ? (scorecard?.holes.filter((h) => h.hole <= 9) ?? []) : [];
-  const back  = !isPlayoff ? (scorecard?.holes.filter((h) => h.hole >= 10) ?? []) : [];
+  // Regular rounds: always show all 18 holes; holes not yet played have null scores.
+  // This ensures the full scorecard is visible during a live round, not just completed holes.
+  // Use Number() to normalize hole keys: ESPN may return period as string "1" instead of int 1.
+  // JavaScript Map uses strict equality, so "1" !== 1 — without Number() all lookups would miss.
+  const holeMap = new Map(scorecard?.holes.map((h) => [Number(h.hole), h]) ?? []);
+  const blankHole = (n: number) => ({ hole: n, par: null, score: null, score_to_par: null, result: null });
+  const front = !isPlayoff ? Array.from({ length: 9 }, (_, i) => holeMap.get(i + 1)  ?? blankHole(i + 1))  : [];
+  const back  = !isPlayoff ? Array.from({ length: 9 }, (_, i) => holeMap.get(i + 10) ?? blankHole(i + 10)) : [];
   const frontPar = front.reduce((s, h) => s + (h.par ?? 0), 0);
   const backPar  = back.reduce((s,  h) => s + (h.par ?? 0), 0);
   const frontScore = front.every((h) => h.score !== null) ? front.reduce((s, h) => s + (h.score ?? 0), 0) : null;
@@ -303,8 +308,8 @@ function ScorecardPanel({
                       <td className="px-2 pt-1.5 text-center font-bold tabular-nums text-gray-700">{frontScore ?? "—"}</td>
                       {back.map((h) => renderHoleCell(h, "px-1 pt-1.5 text-center"))}
                       {back.length > 0 && <td className="px-2 pt-1.5 text-center font-bold tabular-nums text-gray-700">{backScore ?? "—"}</td>}
-                      <td className={`pl-2 pt-1.5 text-center font-bold tabular-nums ${stpClass(scorecard.total_score_to_par)}`}>
-                        {scorecard.total_score ?? "—"}
+                      <td className={`pl-2 pt-1.5 text-center font-bold tabular-nums ${frontScore !== null && backScore !== null ? stpClass(scorecard.total_score_to_par) : ""}`}>
+                        {frontScore !== null && backScore !== null ? (scorecard.total_score ?? "—") : "—"}
                       </td>
                     </tr>
                   </tbody>
@@ -383,14 +388,44 @@ export function TournamentDetail() {
   // Both partners share the same position/score — we keep the first occurrence
   // of each team (by sort order) and skip the partner entry when we encounter it.
   const displayEntries = (() => {
-    if (!isTeamEvent) return leaderboard.entries;
-    const seen = new Set<string>();
-    return leaderboard.entries.filter((e) => {
-      if (seen.has(e.golfer_id)) return false;
-      seen.add(e.golfer_id);
-      if (e.partner_golfer_id) seen.add(e.partner_golfer_id);
-      return true;
-    });
+    let entries = leaderboard.entries;
+    if (isTeamEvent) {
+      const seen = new Set<string>();
+      entries = entries.filter((e) => {
+        if (seen.has(e.golfer_id)) return false;
+        seen.add(e.golfer_id);
+        if (e.partner_golfer_id) seen.add(e.partner_golfer_id);
+        return true;
+      });
+    }
+
+    // For live tournaments, break ties within the same score by:
+    // 1. Thru descending (more holes played ranks higher)
+    // 2. Name ascending (alphabetical tiebreaker)
+    if (!isCompleted) {
+      const getThru = (e: typeof entries[0]): number => {
+        const rd =
+          e.rounds.find((x) => x.thru !== null && x.thru > 0 && x.thru < 18) ??
+          e.rounds.filter((x) => x.thru === 18).sort((a, b) => b.round_number - a.round_number)[0] ??
+          null;
+        return rd?.thru ?? -1;
+      };
+      entries = [...entries].sort((a, b) => {
+        if (a.total_score_to_par !== b.total_score_to_par) {
+          // Preserve primary score ordering (nulls last)
+          if (a.total_score_to_par === null) return 1;
+          if (b.total_score_to_par === null) return -1;
+          return a.total_score_to_par - b.total_score_to_par;
+        }
+        // Tied score: more holes played ranks higher
+        const thruDiff = getThru(b) - getThru(a);
+        if (thruDiff !== 0) return thruDiff;
+        // Same thru: alphabetical
+        return a.golfer_name.localeCompare(b.golfer_name);
+      });
+    }
+
+    return entries;
   })();
 
   // Detect playoff rounds using the is_playoff flag (not round_number > 4,
@@ -417,8 +452,15 @@ export function TournamentDetail() {
     return entry.status === "WD" || entry.status === "CUT" || entry.status === "MDF" || entry.status === "DQ";
   }
 
-  // Total column count for scorecard colspan
-  const totalCols = 2 /* pos + golfer */ + 1 /* score */ + 4 /* R1-R4 */ + playoffRoundNums.length + (isCompleted ? 1 : 0);
+  const isLive = !isCompleted;
+
+  // Total column count for scorecard colspan.
+  // The rightmost column is always present: Earnings (completed) or a spacer (live/scheduled).
+  const totalCols =
+    2 /* pos + golfer */ + 1 /* score */ + 4 /* R1-R4 */ +
+    playoffRoundNums.length +
+    (isLive ? 2 /* Today + Thru */ : 0) +
+    1 /* Earnings or spacer */;
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
@@ -457,6 +499,12 @@ export function TournamentDetail() {
                   <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide w-14">Pos</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Golfer</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-center w-14">Score</th>
+                  {isLive && (
+                    <>
+                      <th className="px-2 py-2.5 text-xs font-semibold text-green-600 uppercase tracking-wide text-center w-14">Today</th>
+                      <th className="px-2 py-2.5 text-xs font-semibold text-green-600 uppercase tracking-wide text-center w-12">Thru</th>
+                    </>
+                  )}
                   {[1, 2, 3, 4].map((r) => (
                     <th key={r} className="px-2 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-center w-10">R{r}</th>
                   ))}
@@ -465,9 +513,10 @@ export function TournamentDetail() {
                       {playoffRoundNums.length === 1 ? "PO" : `PO${i + 1}`}
                     </th>
                   ))}
-                  {isCompleted && (
-                    <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Earnings</th>
-                  )}
+                  {isCompleted
+                    ? <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Earnings</th>
+                    : <th className="w-28" />
+                  }
                 </tr>
               </thead>
               <tbody>
@@ -476,9 +525,10 @@ export function TournamentDetail() {
                   const isFaded = isWithdrawnOrCut(entry);
                   const isExpanded = expandedGolferId === entry.golfer_id;
 
-                  // Rounds that have data (score or tee_time) — used for scorecard tabs
+                  // Rounds that have actually started: have a score or at least one hole played.
+                  // Tee times alone don't qualify — R2 tee times are stored days before play begins.
                   const availableRounds = entry.rounds
-                    .filter((r) => r.score !== null || r.tee_time !== null)
+                    .filter((r) => r.score !== null || (r.thru !== null && r.thru > 0))
                     .map((r) => r.round_number)
                     .sort((a, b) => a - b);
 
@@ -574,10 +624,40 @@ export function TournamentDetail() {
                           {fmtStp(entry.total_score_to_par) || "—"}
                         </td>
 
+                        {/* Today + Thru (live tournaments only) */}
+                        {isLive && (() => {
+                          // Priority: a round actively in progress (0 < thru < 18),
+                          // then the most recently completed round (thru === 18).
+                          const activeRd =
+                            entry.rounds.find((x) => x.thru !== null && x.thru > 0 && x.thru < 18) ??
+                            entry.rounds
+                              .filter((x) => x.thru === 18)
+                              .sort((a, b) => b.round_number - a.round_number)[0] ??
+                            null;
+                          const todayStp = activeRd ? activeRd.score_to_par : null;
+                          const thruLabel =
+                            activeRd === null || (activeRd.thru ?? 0) === 0 ? "—" :
+                            activeRd.thru === 18 ? "F" :
+                            `${activeRd.thru}${activeRd.started_on_back ? "*" : ""}`;
+                          return (
+                            <>
+                              <td className={`px-2 py-3 text-xs text-center tabular-nums font-semibold ${todayStp !== null ? stpClass(todayStp) : "text-gray-300"}`}>
+                                {todayStp !== null ? fmtStp(todayStp) : "—"}
+                              </td>
+                              <td className="px-2 py-3 text-xs text-center tabular-nums text-gray-500">
+                                {thruLabel}
+                              </td>
+                            </>
+                          );
+                        })()}
+
                         {/* R1–R4 */}
                         {[1, 2, 3, 4].map((r) => {
                           const rd = entry.rounds.find((x) => x.round_number === r);
-                          const hasScore = rd?.score_to_par !== null && rd?.score_to_par !== undefined;
+                          // Show the round score only if it's complete (thru=18) or
+                          // the tournament is finished. Suppresses partial in-progress scores.
+                          const roundComplete = isCompleted || rd?.thru === 18;
+                          const hasScore = roundComplete && rd?.score_to_par !== null && rd?.score_to_par !== undefined;
                           return (
                             <td key={r} className={`px-2 py-3 text-xs text-center tabular-nums ${hasScore ? stpClass(rd!.score_to_par) : ""}`}>
                               {hasScore ? fmtStp(rd!.score_to_par) : <span className="block mx-auto w-3 h-px bg-gray-600 rounded-full" />}
@@ -588,7 +668,8 @@ export function TournamentDetail() {
                         {/* Playoff rounds */}
                         {playoffRoundNums.map((r) => {
                           const rd = entry.rounds.find((x) => x.round_number === r);
-                          const hasScore = rd?.score_to_par !== null && rd?.score_to_par !== undefined;
+                          const roundComplete = isCompleted || rd?.thru === 18;
+                          const hasScore = roundComplete && rd?.score_to_par !== null && rd?.score_to_par !== undefined;
                           return (
                             <td key={r} className={`px-2 py-3 text-xs text-center tabular-nums ${hasScore ? stpClass(rd!.score_to_par) : ""}`}>
                               {hasScore ? fmtStp(rd!.score_to_par) : <span className="block mx-auto w-3 h-px bg-gray-600 rounded-full" />}
@@ -596,12 +677,11 @@ export function TournamentDetail() {
                           );
                         })}
 
-                        {/* Earnings */}
-                        {isCompleted && (
-                          <td className="px-4 py-3 text-xs text-right tabular-nums text-gray-600">
-                            {formatEarnings(entry.earnings_usd)}
-                          </td>
-                        )}
+                        {/* Earnings / spacer */}
+                        {isCompleted
+                          ? <td className="px-4 py-3 text-xs text-right tabular-nums text-gray-600">{formatEarnings(entry.earnings_usd)}</td>
+                          : <td />
+                        }
                       </tr>
 
                       {/* Expanded scorecard row */}

@@ -8,6 +8,7 @@ import { PickForm } from "../components/PickForm";
 import { GolferAvatar } from "../components/GolferAvatar";
 import { FlagIcon } from "../components/FlagIcon";
 import { PlayoffPreferenceEditor } from "../components/PlayoffPreferenceEditor";
+import type { GolferInField } from "../api/endpoints";
 import { useLeagueTournaments } from "../hooks/useLeague";
 import { useMyPicks, useSubmitPick, useTournamentField, useChangePick, useAllGolfers } from "../hooks/usePick";
 import { useMyPlayoffPod, useMyPreferences } from "../hooks/usePlayoff";
@@ -37,16 +38,18 @@ export function MakePick() {
   const submitPick = useSubmitPick(leagueId!);
   const changePick = useChangePick(leagueId!);
 
-  // Target the earliest actionable tournament: prefer scheduled, then in_progress.
-  // In_progress tournaments are still pickable if the chosen golfer hasn't teed off yet
-  // (the backend enforces the tee_time check).
+  // Target the earliest actionable tournament: prefer in_progress over scheduled.
+  // If a tournament is currently in progress, it must complete before the member
+  // can pick for the next scheduled tournament (rules: previous tournament must
+  // complete first). In_progress tournaments are still pickable if the chosen
+  // golfer hasn't teed off yet (the backend enforces the tee_time check).
   const tournament = leagueTournaments
     ?.filter((t) => t.status === "scheduled" || t.status === "in_progress")
     .sort((a, b) => {
-      // Scheduled before in_progress so a pending pick always lands on the right week.
+      // In_progress before scheduled: current week takes priority over upcoming.
       // Within the same status, sort by start_date ascending.
       if (a.status !== b.status) {
-        return a.status === "scheduled" ? -1 : 1;
+        return a.status === "in_progress" ? -1 : 1;
       }
       return a.start_date.localeCompare(b.start_date);
     })[0];
@@ -64,10 +67,28 @@ export function MakePick() {
   // all known golfers so users can pick early. The backend allows this pre-field pick.
   const fieldNotReleased =
     tournament?.status === "scheduled" && Array.isArray(field) && field.length === 0;
-  const effectiveField = fieldNotReleased ? (allGolfers ?? []) : (field ?? []);
+  // allGolfers (Golfer[]) lacks tee_time, but the pre-field path only activates
+  // when status === "scheduled", so the teedOffGolferIds logic below never fires
+  // for it. The cast is safe.
+  const effectiveField: GolferInField[] = fieldNotReleased
+    ? ((allGolfers ?? []) as GolferInField[])
+    : (field ?? []);
 
   // Set of golfer IDs already used this season (for the "Used" greyed-out display).
   const usedGolferIds = new Set(myPicks?.map((p) => p.golfer_id) ?? []);
+
+  // When the tournament is in_progress, identify golfers whose Round 1 tee time
+  // has already passed. These golfers are no longer eligible for a late pick.
+  // We keep them visible in the list (greyed out with a "Teed off" label) so the
+  // user understands why they cannot select them, rather than hiding them silently.
+  const now = new Date();
+  const teedOffGolferIds = new Set(
+    tournament?.status === "in_progress"
+      ? effectiveField
+          .filter((g) => g.tee_time != null && new Date(g.tee_time) <= now)
+          .map((g) => g.id)
+      : []
+  );
 
   async function handleSubmit(golferId: string) {
     setError("");
@@ -186,7 +207,7 @@ export function MakePick() {
             </div>
             <p className="font-semibold text-gray-700">Picks submitted</p>
             <p className="text-sm text-gray-400 max-w-xs mx-auto">
-              The draft window has closed and your picks have been locked in.
+              The preference window has closed and your picks have been locked in.
             </p>
             <Link
               to={`/leagues/${leagueId}/playoff`}
@@ -208,23 +229,31 @@ export function MakePick() {
               <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300">
-                      Playoff Round {myPod.active_round_number}
-                    </p>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500 text-white">
-                      PLAYOFF
-                    </span>
-                  </div>
+                  <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300 mb-1">
+                    Playoff Round {myPod.active_round_number}
+                  </p>
                   <p className="text-xl font-bold text-white">{fmtTournamentName(tournament.name)}</p>
-                  <div className="flex items-center gap-3 mt-2 text-sm text-green-300">
-                    <span>{formatDate(tournament.start_date)}–{formatDate(tournament.end_date)}</span>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <span className="text-sm text-green-300">{formatDate(tournament.start_date)}–{formatDate(tournament.end_date)}</span>
                     {formatPurse(tournament.purse_usd) && (
                       <>
                         <span className="text-green-600">·</span>
-                        <span>{formatPurse(tournament.purse_usd)}</span>
+                        <span className="text-sm text-green-300">{formatPurse(tournament.purse_usd)}</span>
                       </>
                     )}
+                    {tournament.effective_multiplier >= 2 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white flex-shrink-0">
+                        {tournament.effective_multiplier}×
+                      </span>
+                    )}
+                    {tournament.effective_multiplier > 1 && tournament.effective_multiplier < 2 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex-shrink-0">
+                        {tournament.effective_multiplier}×
+                      </span>
+                    )}
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500 text-white flex-shrink-0">
+                      PLAYOFF
+                    </span>
                   </div>
                 </div>
               </div>
@@ -243,7 +272,7 @@ export function MakePick() {
               <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
             </svg>
             <p className="text-xs text-purple-700 leading-relaxed">
-              <span className="font-semibold">Playoff draft.</span> Rank your preferred golfers in order. The system will assign picks using the draft algorithm — each player gets {myPod.picks_per_round} golfer{(myPod.picks_per_round ?? 1) !== 1 ? "s" : ""}. Submit before the tournament starts.
+              <span className="font-semibold">Playoff picks.</span> Rank your preferred golfers in order. The system will assign picks automatically — each player gets {myPod.picks_per_round} golfer{(myPod.picks_per_round ?? 1) !== 1 ? "s" : ""}. Submit before the tournament starts.
             </p>
           </div>
 
@@ -254,6 +283,7 @@ export function MakePick() {
             currentPreferences={myPreferences}
             picksPerRound={myPod.picks_per_round ?? undefined}
             requiredCount={myPod.required_preference_count ?? undefined}
+            deadline={myPod.deadline ?? undefined}
           />
 
           <div className="flex items-center gap-4 pt-2">
@@ -422,6 +452,7 @@ export function MakePick() {
       <PickForm
         field={effectiveField}
         usedGolferIds={usedGolferIds}
+        teedOffGolferIds={teedOffGolferIds}
         existingPick={existingPick}
         onSubmit={handleSubmit}
         submitting={submitPick.isPending || changePick.isPending}

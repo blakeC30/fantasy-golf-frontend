@@ -18,11 +18,15 @@ interface PlayoffPreferenceEditorProps {
   currentPreferences: PlayoffPreference[];
   picksPerRound?: number;
   requiredCount?: number;   // pod_size * picks_per_round — exact number to submit
+  deadline?: string;        // ISO datetime; preferences lock when this moment passes
   onSaveSuccess?: () => void;
 }
 
 export function PlayoffPreferenceEditor(props: PlayoffPreferenceEditorProps) {
-  const { leagueId, podId, tournamentId, currentPreferences, picksPerRound, requiredCount, onSaveSuccess } = props;
+  const { leagueId, podId, tournamentId, currentPreferences, picksPerRound, requiredCount, deadline, onSaveSuccess } = props;
+
+  // Preferences are locked once the first R1 tee time has passed.
+  const isWindowClosed = deadline ? new Date() >= new Date(deadline) : false;
 
   const { data: rawField } = useTournamentField(tournamentId);
   const { data: allGolfers } = useAllGolfers();
@@ -105,6 +109,16 @@ export function PlayoffPreferenceEditor(props: PlayoffPreferenceEditorProps) {
 
   return (
     <section className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+      {isWindowClosed && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+          <p className="text-xs text-amber-700 font-medium">
+            The preference window is closed — the tournament has started.
+          </p>
+        </div>
+      )}
       <div className="space-y-1">
         <h2 className="text-sm font-bold text-gray-800">Your Rankings</h2>
         {requiredCount !== undefined ? (
@@ -181,7 +195,7 @@ export function PlayoffPreferenceEditor(props: PlayoffPreferenceEditorProps) {
       <div className="flex items-center gap-3">
         <button
           onClick={handleSubmit}
-          disabled={submit.isPending || ranked.length === 0 || (requiredCount !== undefined && ranked.length !== requiredCount)}
+          disabled={isWindowClosed || submit.isPending || ranked.length === 0 || (requiredCount !== undefined && ranked.length !== requiredCount)}
           className="text-sm font-bold text-white bg-green-700 hover:bg-green-600 px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
         >
           {submit.isPending ? "Submitting…" : "Save Rankings"}
@@ -204,8 +218,8 @@ export function PlayoffPreferenceEditor(props: PlayoffPreferenceEditorProps) {
       </div>
       {saveError && <p className="text-xs text-red-600">{saveError}</p>}
 
-      {/* Search & add */}
-      <div className="space-y-2 border-t border-gray-100 pt-4">
+      {/* Search & add — hidden once the preference window has closed */}
+      {!isWindowClosed && <div className="space-y-2 border-t border-gray-100 pt-4">
         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Add golfers</p>
         <input
           type="text"
@@ -233,7 +247,7 @@ export function PlayoffPreferenceEditor(props: PlayoffPreferenceEditorProps) {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
     </section>
   );
 }

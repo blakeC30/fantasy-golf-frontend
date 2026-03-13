@@ -391,16 +391,17 @@ function PodModal({
             <div className="px-5 py-10 text-center space-y-2">
               <p className="text-sm text-gray-400">
                 {isDrafting
-                  ? "Draft is open — picks will appear after the draft is resolved."
+                  ? "Rankings are being collected — picks will be assigned automatically once the tournament begins."
                   : "No picks yet."}
               </p>
               {isDrafting && isInPod && (
                 <Link
-                  to={`/leagues/${leagueId}/playoff/draft/${pod.id}`}
+                  to={`/leagues/${leagueId}/playoff/pod/${pod.id}`}
                   className="inline-block text-sm font-semibold text-green-700 hover:text-green-900"
                 >
                   Submit your rankings →
                 </Link>
+
               )}
             </div>
           ) : (
@@ -468,10 +469,10 @@ function PodModal({
         {isDrafting && isInPod && (
           <div className="px-5 py-3 border-t border-gray-100 bg-amber-50">
             <Link
-              to={`/leagues/${leagueId}/playoff/draft/${pod.id}`}
+              to={`/leagues/${leagueId}/playoff/pod/${pod.id}`}
               className="text-sm font-semibold text-amber-700 hover:text-amber-900"
             >
-              Draft open — submit your rankings →
+              Rankings open — submit your preferences →
             </Link>
           </div>
         )}
@@ -540,7 +541,7 @@ function PodCard({
       </div>
       {isDraftOpen && isInPod && (
         <div className="bg-amber-50 border-t border-amber-100 px-4 py-2">
-          <p className="text-[11px] font-semibold text-amber-700">Draft open — tap to submit your rankings</p>
+          <p className="text-[11px] font-semibold text-amber-700">Rankings open — tap to submit your preferences</p>
         </div>
       )}
     </div>
@@ -842,7 +843,6 @@ function PageHeader({
     projected: "bg-amber-100 text-amber-700",
     active:    "bg-green-100 text-green-700",
     completed: "bg-slate-100 text-slate-600",
-    seeded:    "bg-blue-100 text-blue-700",
   };
   const cls = badgeColors[badge] ?? "bg-gray-100 text-gray-600";
 

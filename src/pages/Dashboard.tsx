@@ -121,45 +121,87 @@ export function Dashboard() {
       {/* Current tournament card */}
       {active ? (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-          {/* Gradient header band */}
-          <div className="bg-gradient-to-r from-green-900 to-green-700 px-5 py-4 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300">
-                    {active.status === "in_progress" ? "Live Now" : "Up Next"}
-                  </p>
-                  {myPod?.is_playoff_week && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500 text-white flex-shrink-0">
-                      PLAYOFF
-                    </span>
-                  )}
+          {/* Gradient header band — clickable to tournament detail when live */}
+          {active.status === "in_progress" ? (
+            <Link
+              to={`/leagues/${leagueId}/tournaments/${active.id}`}
+              className="block bg-gradient-to-r from-green-900 to-green-700 px-5 py-4 text-white hover:from-green-800 hover:to-green-600 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300">
+                      Live Now →
+                    </p>
+                  </div>
+                  <h2 className="text-xl font-bold text-white leading-tight">
+                    {fmtTournamentName(active.name)}
+                  </h2>
+                  <div className="flex items-center gap-3 flex-wrap text-sm text-white/70">
+                    <span>{formatDate(active.start_date)}–{formatDate(active.end_date)}</span>
+                    {formatPurse(active.purse_usd) && (
+                      <>
+                        <span className="text-white/30">·</span>
+                        <span>{formatPurse(active.purse_usd)}</span>
+                      </>
+                    )}
+                    {active.effective_multiplier >= 2 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white flex-shrink-0">
+                        {active.effective_multiplier}×
+                      </span>
+                    )}
+                    {active.effective_multiplier > 1 && active.effective_multiplier < 2 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex-shrink-0">
+                        {active.effective_multiplier}×
+                      </span>
+                    )}
+                    {myPod?.is_playoff_week && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500 text-white flex-shrink-0">
+                        PLAYOFF
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <h2 className="text-xl font-bold text-white leading-tight">
-                  {fmtTournamentName(active.name)}
-                </h2>
-                <div className="flex items-center gap-3 flex-wrap text-sm text-white/70">
-                  <span>{formatDate(active.start_date)}–{formatDate(active.end_date)}</span>
-                  {formatPurse(active.purse_usd) && (
-                    <>
-                      <span className="text-white/30">·</span>
-                      <span>{formatPurse(active.purse_usd)}</span>
-                    </>
-                  )}
-                  {active.effective_multiplier >= 2 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white flex-shrink-0">
-                      {active.effective_multiplier}×
-                    </span>
-                  )}
-                  {active.effective_multiplier > 1 && active.effective_multiplier < 2 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex-shrink-0">
-                      {active.effective_multiplier}×
-                    </span>
-                  )}
+              </div>
+            </Link>
+          ) : (
+            <div className="bg-gradient-to-r from-green-900 to-green-700 px-5 py-4 text-white">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-300">
+                    Up Next
+                  </p>
+                  <h2 className="text-xl font-bold text-white leading-tight">
+                    {fmtTournamentName(active.name)}
+                  </h2>
+                  <div className="flex items-center gap-3 flex-wrap text-sm text-white/70">
+                    <span>{formatDate(active.start_date)}–{formatDate(active.end_date)}</span>
+                    {formatPurse(active.purse_usd) && (
+                      <>
+                        <span className="text-white/30">·</span>
+                        <span>{formatPurse(active.purse_usd)}</span>
+                      </>
+                    )}
+                    {active.effective_multiplier >= 2 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white flex-shrink-0">
+                        {active.effective_multiplier}×
+                      </span>
+                    )}
+                    {active.effective_multiplier > 1 && active.effective_multiplier < 2 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex-shrink-0">
+                        {active.effective_multiplier}×
+                      </span>
+                    )}
+                    {myPod?.is_playoff_week && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500 text-white flex-shrink-0">
+                        PLAYOFF
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Card body — pick status */}
           <div className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
@@ -269,6 +311,18 @@ export function Dashboard() {
                       ) : null}
                     </div>
                   </>
+                );
+              }
+              if (active.all_r1_teed_off) {
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                      </svg>
+                    </div>
+                    <p className="text-base font-semibold text-gray-400">Pick window closed</p>
+                  </div>
                 );
               }
               return (

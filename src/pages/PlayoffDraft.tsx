@@ -64,7 +64,7 @@ function DraftStatusCard({ draftStatus }: { draftStatus: PlayoffDraftStatus }) {
       </div>
       {draftStatus.deadline && (
         <p className="text-[11px] text-gray-400">
-          Closes at tournament start ·{" "}
+          Rankings lock at tournament start ·{" "}
           {new Date(draftStatus.deadline).toLocaleDateString(undefined, {
             weekday: "short",
             month: "short",
@@ -151,7 +151,7 @@ export function PlayoffDraft() {
     <div className="space-y-6 max-w-xl mx-auto">
       {/* Header */}
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">Playoff Draft</p>
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-green-700">Playoff Preferences</p>
         <div className="flex items-center justify-between gap-4 mt-1">
           <h1 className="text-2xl font-bold text-gray-900">Pod {podIdNum}</h1>
           <Link
@@ -169,11 +169,11 @@ export function PlayoffDraft() {
               ? "bg-purple-100 text-purple-700"
               : "bg-gray-100 text-gray-500"
           }`}>
-            {draftStatus.round_status}
+            {draftStatus.round_status === "drafting" ? "Open" : draftStatus.round_status === "locked" ? "Locked" : draftStatus.round_status}
           </span>
           {draftStatus.deadline && (
             <span className="text-xs text-gray-400">
-              Deadline:{" "}
+              Submit by:{" "}
               {new Date(draftStatus.deadline).toLocaleDateString(undefined, {
                 month: "short",
                 day: "numeric",
@@ -196,6 +196,8 @@ export function PlayoffDraft() {
           podId={podIdNum!}
           tournamentId={bracketTournamentId}
           currentPreferences={myPreferences}
+          requiredCount={draftStatus.required_preference_count ?? undefined}
+          deadline={draftStatus.deadline ?? undefined}
         />
       )}
 
@@ -210,7 +212,7 @@ export function PlayoffDraft() {
       {!isDraftOpen && !isResolved && isInPod && (
         <div className="bg-gray-50 rounded-2xl p-6 text-center">
           <p className="text-sm text-gray-400">
-            The draft window is not open yet. Check back when the manager opens it.
+            Preference submission is not open yet. Check back when the manager opens it.
           </p>
         </div>
       )}

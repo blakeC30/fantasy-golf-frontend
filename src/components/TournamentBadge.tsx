@@ -33,9 +33,11 @@ interface Props {
   // Accept both plain Tournament and LeagueTournamentOut (which adds effective_multiplier).
   tournament: Tournament & { effective_multiplier?: number };
   showDates?: boolean;
+  isPlayoff?: boolean;
 }
 
-export function TournamentBadge({ tournament, showDates = false }: Props) {
+export function TournamentBadge({ tournament, showDates = false, isPlayoff = false }: Props) {
+  const mult = tournament.effective_multiplier;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span
@@ -44,15 +46,32 @@ export function TournamentBadge({ tournament, showDates = false }: Props) {
         {STATUS_LABEL[tournament.status]}
       </span>
 
+      {showDates && (
+        <span className="text-xs text-gray-500">
+          {fmt(tournament.start_date)} – {fmt(tournament.end_date)}
+        </span>
+      )}
+
       {formatPurse(tournament.purse_usd) && (
         <span className="text-xs text-gray-400">
           {formatPurse(tournament.purse_usd)} purse
         </span>
       )}
 
-      {showDates && (
-        <span className="text-xs text-gray-500">
-          {fmt(tournament.start_date)} – {fmt(tournament.end_date)}
+      {mult !== undefined && mult >= 2 && (
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white flex-shrink-0">
+          {mult}×
+        </span>
+      )}
+      {mult !== undefined && mult > 1 && mult < 2 && (
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex-shrink-0">
+          {mult}×
+        </span>
+      )}
+
+      {isPlayoff && (
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 flex-shrink-0">
+          PLAYOFF
         </span>
       )}
     </div>

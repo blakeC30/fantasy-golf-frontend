@@ -1,6 +1,7 @@
 /**
  * GolferCard — displays a golfer's details in the pick form.
- * Highlights when selected; greyed out when already used this season.
+ * Highlights when selected; greyed out when already used this season or
+ * when the golfer has already teed off during an in-progress tournament.
  */
 
 import type { Golfer } from "../api/endpoints";
@@ -10,14 +11,20 @@ interface Props {
   golfer: Golfer;
   selected?: boolean;
   alreadyUsed?: boolean;
+  /** True when the golfer's Round 1 tee time has passed (in_progress tournament only). */
+  alreadyTeedOff?: boolean;
   onClick?: () => void;
 }
 
-export function GolferCard({ golfer, selected, alreadyUsed, onClick }: Props) {
+export function GolferCard({ golfer, selected, alreadyUsed, alreadyTeedOff, onClick }: Props) {
   const base =
     "flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors";
 
-  const style = alreadyUsed
+  // Either flag disables the card — they are mutually exclusive in practice but
+  // treated uniformly here for safety.
+  const disabled = alreadyUsed || alreadyTeedOff;
+
+  const style = disabled
     ? `${base} opacity-40 cursor-not-allowed border-gray-200 bg-gray-50`
     : selected
     ? `${base} border-green-600 bg-green-50 ring-2 ring-green-500`
@@ -26,11 +33,11 @@ export function GolferCard({ golfer, selected, alreadyUsed, onClick }: Props) {
   return (
     <div
       className={style}
-      onClick={alreadyUsed ? undefined : onClick}
-      role={alreadyUsed ? undefined : "button"}
-      tabIndex={alreadyUsed ? -1 : 0}
+      onClick={disabled ? undefined : onClick}
+      role={disabled ? undefined : "button"}
+      tabIndex={disabled ? -1 : 0}
       onKeyDown={(e) => {
-        if (!alreadyUsed && (e.key === "Enter" || e.key === " ")) onClick?.();
+        if (!disabled && (e.key === "Enter" || e.key === " ")) onClick?.();
       }}
     >
       <GolferAvatar
@@ -50,7 +57,10 @@ export function GolferCard({ golfer, selected, alreadyUsed, onClick }: Props) {
       {alreadyUsed && (
         <span className="text-xs text-gray-400 shrink-0">Used</span>
       )}
-      {selected && !alreadyUsed && (
+      {alreadyTeedOff && !alreadyUsed && (
+        <span className="text-xs text-gray-400 shrink-0">Teed off</span>
+      )}
+      {selected && !disabled && (
         <span className="text-xs text-green-700 font-semibold shrink-0">Selected</span>
       )}
     </div>

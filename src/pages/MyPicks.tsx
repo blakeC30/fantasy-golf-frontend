@@ -2,7 +2,7 @@
  * Picks — season history of picks and points earned, viewable for any league member.
  */
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMyPicks, useAllPicks } from "../hooks/usePick";
 import { useLeague, useLeagueTournaments, useLeagueMembers } from "../hooks/useLeague";
@@ -12,8 +12,7 @@ import { GolferAvatar } from "../components/GolferAvatar";
 import { FlagIcon } from "../components/FlagIcon";
 import { fmtTournamentName } from "../utils";
 import { useDropdownDirection } from "../hooks/useDropdownDirection";
-import { useMyPlayoffPod, useMyPlayoffPicks, useBracket } from "../hooks/usePlayoff";
-import type { PlayoffTournamentPickOut } from "../hooks/usePlayoff";
+import { useMyPlayoffPicks, useBracket } from "../hooks/usePlayoff";
 
 function formatPoints(pts: number | null): string {
   if (pts === null) return "—";
@@ -93,7 +92,6 @@ export function MyPicks() {
   const { data: league } = useLeague(leagueId!);
   const { data: myPicksData, isLoading } = useMyPicks(leagueId!);
   const { data: myPlayoffPicks } = useMyPlayoffPicks(leagueId!);
-  const { data: myPod } = useMyPlayoffPod(leagueId!);
   const { data: bracket } = useBracket(leagueId!);
   const approvedMembers = members?.filter((m) => m.status === "approved") ?? [];
 
@@ -128,14 +126,24 @@ export function MyPicks() {
   const myLivePick = liveTournament
     ? myPicksData?.find((p) => p.tournament_id === liveTournament.id)
     : undefined;
-  // Hide the pick button when the live tournament's pick is locked (golfer has teed off).
-  const pickActionAvailable = hasLiveTournament ? !myLivePick?.is_locked : !!nextTournament;
+  // Hide the pick button when the live tournament's pick is locked (golfer has teed off),
+  // or when all Round 1 tee times have passed and the member has no pick yet (window permanently closed).
+  const pickActionAvailable = hasLiveTournament
+    ? (!myLivePick?.is_locked && !(liveTournament?.all_r1_teed_off && !myLivePick))
+    : !!nextTournament;
 
   // Map submitted picks by tournament id for quick lookup
   const picksByTournamentId = new Map(picks?.map((p) => [p.tournament_id, p]) ?? []);
 
   const playoffPicksByTournamentId = new Map(
     (myPlayoffPicks ?? []).map((p) => [p.tournament_id, p])
+  );
+
+  // Set of tournament IDs that belong to a playoff round — used to exclude them
+  // from regular-season no-pick penalty calculations and to route rendering.
+  const playoffTournamentIds = useMemo(
+    () => new Set(bracket?.rounds.map((r) => r.tournament_id).filter(Boolean) ?? []),
+    [bracket]
   );
 
   type OtherPlayoffEntry = { status: string; picks: { id: string; pod_member_id: number; golfer_id: string; golfer_name: string; draft_slot: number; points_earned: number | null; created_at: string }[]; total_points: number | null };
@@ -169,18 +177,29 @@ export function MyPicks() {
   const leagueTournamentIds = new Set(leagueTournaments?.map((t) => t.id) ?? []);
   const scheduledPicks = picks?.filter((p) => leagueTournamentIds.has(p.tournament_id)) ?? null;
 
-  // Fully finished tournaments with no pick submitted — penalty applies to these.
+  // Fully finished regular-season tournaments with no pick submitted — penalty applies to these.
+  // Playoff tournaments are excluded: their penalty is already baked into total_points from the
+  // playoff scoring service and must not be double-counted here.
   const noPickCompletedCount = completedTournaments.filter(
-    (t) => t.status === "completed" && !scheduledPicks?.some((p) => p.tournament_id === t.id)
+    (t) =>
+      t.status === "completed" &&
+      !playoffTournamentIds.has(t.id) &&
+      !scheduledPicks?.some((p) => p.tournament_id === t.id)
   ).length;
   const penaltyTotal = noPickCompletedCount * (league?.no_pick_penalty ?? 0);
 
+  // Playoff earnings (total_points already includes any per-slot penalties from score_round).
+  // Only added for the current user — own picks are never hidden, so the data is always accurate.
+  const playoffEarned = isViewingSelf
+    ? (myPlayoffPicks ?? []).reduce((sum, p) => sum + (p.total_points ?? 0), 0)
+    : 0;
+
   const totalEarned =
-    (scheduledPicks?.reduce((sum, p) => sum + (p.points_earned ?? 0), 0) ?? 0) + penaltyTotal;
+    (scheduledPicks?.reduce((sum, p) => sum + (p.points_earned ?? 0), 0) ?? 0) +
+    penaltyTotal +
+    playoffEarned;
   // Picks for which we have a final score
   const scoredPicks = scheduledPicks?.filter((p) => p.points_earned !== null) ?? [];
-  // Picks that earned money (made the cut)
-  const cutsMade = scoredPicks.filter((p) => p.points_earned! > 0);
   // Picks that earned $0 (missed the cut)
   const cutsMissed = scoredPicks.filter((p) => p.points_earned === 0);
   // Picks submitted for final (status === "completed") tournaments only
@@ -338,8 +357,9 @@ export function MyPicks() {
         );
       })()}
 
-      {/* Season total */}
-      {scheduledPicks && scheduledPicks.length > 0 && (
+      {/* Season total — show whenever at least one tournament has completed,
+          even if the member submitted no picks (total may be zero or negative) */}
+      {finalTournamentCount > 0 && (
         <div className="relative overflow-hidden bg-gradient-to-br from-green-900 via-green-800 to-green-700 rounded-2xl p-6 text-white shadow-lg shadow-green-900/20">
           {/* Decorative blob */}
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5 blur-2xl pointer-events-none" />
@@ -417,9 +437,18 @@ export function MyPicks() {
           </div>
 
           {historyRows.map(({ key, tournament, pick }) => {
+            const isPlayoffTournament = playoffTournamentIds.has(tournament.id);
+            const ownPlayoffData = isViewingSelf ? playoffPicksByTournamentId.get(tournament.id) : undefined;
+            const otherPlayoffData = !isViewingSelf ? otherMemberPlayoffMap.get(tournament.id) : undefined;
+            const playoffData = ownPlayoffData ?? otherPlayoffData;
+
             const isClickable = tournament.status === "in_progress" || tournament.status === "completed";
+
+            // Red border only for regular-season missed picks; playoff penalty is shown inline.
+            const hasMissedRegularPick = !isPlayoffTournament && !pick && completedTournaments.some((t) => t.id === tournament.id);
+            const hasPlayoffPenalty = isPlayoffTournament && tournament.status === "completed" && playoffData && playoffData.picks.length === 0;
             const rowClass = `bg-white border rounded-xl p-5 flex items-center justify-between gap-4 transition-all ${
-              !pick && completedTournaments.some((t) => t.id === tournament.id)
+              hasMissedRegularPick || hasPlayoffPenalty
                 ? "border-red-100"
                 : "border-gray-200"
             } ${isClickable ? "hover:shadow-sm hover:border-green-300 cursor-pointer" : ""}`;
@@ -427,11 +456,71 @@ export function MyPicks() {
               <>
                 <div className="space-y-1 min-w-0 flex-1">
                   <p className="font-semibold text-gray-900 truncate">{fmtTournamentName(tournament.name)}</p>
-                  <TournamentBadge tournament={tournament} showDates />
+                  <TournamentBadge tournament={tournament} showDates isPlayoff={isPlayoffTournament} />
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
-                  {pick ? (() => {
+                  {isPlayoffTournament ? (() => {
+                    // Playoff tournament — use playoff pick data, not a regular Pick record.
+                    if (!playoffData) {
+                      // Data not yet loaded or member was not in playoffs for this round.
+                      return <p className="text-sm text-gray-400">—</p>;
+                    }
+                    const { picks: poPicks, total_points, status: roundStatus } = playoffData;
+                    if (roundStatus === "drafting") {
+                      // Window open — show preference submission status.
+                      if (isViewingSelf) {
+                        const submittedCount = ownPlayoffData?.picks.length ?? 0;
+                        return (
+                          <p className="text-sm font-medium text-gray-500 text-right">
+                            {submittedCount > 0 ? `${submittedCount} ranked` : "No preferences yet"}
+                          </p>
+                        );
+                      }
+                      return <p className="text-sm font-medium text-gray-400 text-right">Picks hidden</p>;
+                    }
+                    if (roundStatus === "locked" && tournament.status === "in_progress") {
+                      // Tournament underway — picks locked but not yet scored.
+                      if (poPicks.length > 0) {
+                        return (
+                          <div className="text-right space-y-0.5">
+                            <p className="text-sm font-medium text-gray-600">
+                              {poPicks.map((p) => p.golfer_name).join(", ")}
+                            </p>
+                            <p className="text-sm text-gray-400">In progress</p>
+                          </div>
+                        );
+                      }
+                      return <p className="text-sm font-medium text-gray-400 text-right">Picks hidden</p>;
+                    }
+                    if (roundStatus === "completed" || tournament.status === "completed") {
+                      if (poPicks.length > 0) {
+                        return (
+                          <div className="text-right space-y-0.5">
+                            <p className="text-sm font-medium text-gray-600">
+                              {poPicks.map((p) => p.golfer_name).join(", ")}
+                            </p>
+                            <p className={`text-lg font-bold tabular-nums ${
+                              (total_points ?? 0) >= 0 ? "text-green-700" : "text-red-500"
+                            }`}>
+                              {formatPoints(total_points)}
+                            </p>
+                          </div>
+                        );
+                      }
+                      // No picks resolved — penalty was applied per slot.
+                      return (
+                        <div className="text-right space-y-0.5">
+                          <p className="text-sm font-medium text-red-400">No pick</p>
+                          <p className="text-lg font-bold text-red-500 tabular-nums">
+                            {formatPoints(total_points)}
+                          </p>
+                        </div>
+                      );
+                    }
+                    // pending round — not yet started
+                    return <p className="text-sm text-gray-400">Playoff round</p>;
+                  })() : pick ? (() => {
                     const multiplier = "effective_multiplier" in tournament
                       ? (tournament as { effective_multiplier: number }).effective_multiplier
                       : 1;

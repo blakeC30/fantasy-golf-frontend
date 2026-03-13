@@ -469,6 +469,14 @@ export function ManageLeague() {
     return acc;
   }, {});
 
+  // True once the last tournament in the saved schedule has completed.
+  // The schedule is permanently locked at that point — no adds or removes allowed.
+  const isScheduleLocked = useMemo(() => {
+    if (!leagueTournaments || leagueTournaments.length === 0) return false;
+    const last = [...leagueTournaments].sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+    return last.status === "completed";
+  }, [leagueTournaments]);
+
   // True when 2+ selected tournaments share an ISO week — blocks schedule save.
   const hasScheduleConflicts = (() => {
     const counts = new Map<string, number>();
@@ -734,11 +742,12 @@ export function ManageLeague() {
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
+                    max={0}
                     value={settingsNoPick}
                     onChange={(e) => setSettingsNoPick(parseInt(e.target.value, 10) || 0)}
                     className="w-36 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-700"
                   />
-                  <span className="text-xs text-gray-400">points per missed pick</span>
+                  <span className="text-xs text-gray-400">penalty per missed pick</span>
                 </div>
               ) : (
                 <span className="text-sm font-medium text-gray-900">
@@ -947,7 +956,14 @@ export function ManageLeague() {
               </SectionIcon>
               <h2 className="text-base font-bold text-gray-900">Tournament Schedule</h2>
             </div>
-            {!scheduleEditing && (
+            {isScheduleLocked ? (
+              <span className="text-xs font-semibold text-gray-400 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                Locked
+              </span>
+            ) : !scheduleEditing && (
               <button
                 onClick={() => setScheduleEditing(true)}
                 className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors"

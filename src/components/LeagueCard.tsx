@@ -11,6 +11,7 @@ import { type League, type LeagueTournamentOut } from "../api/endpoints";
 import { fmtTournamentName } from "../utils";
 import { useLeagueMembers, useLeagueTournaments } from "../hooks/useLeague";
 import { useMyPicks, useStandings } from "../hooks/usePick";
+import { useMyPlayoffPod } from "../hooks/usePlayoff";
 import { useAuthStore } from "../store/authStore";
 
 function formatDate(dateStr: string): string {
@@ -57,6 +58,7 @@ export function LeagueCard({ league }: { league: League }) {
   const { data: members } = useLeagueMembers(league.id);
   const { data: tournaments } = useLeagueTournaments(league.id);
   const { data: myPicks } = useMyPicks(league.id);
+  const { data: myPod } = useMyPlayoffPod(league.id);
 
   const myRow = standings?.rows.find((r) => r.user_id === currentUser?.id);
   const isManager = members?.find((m) => m.user_id === currentUser?.id)?.role === "manager";
@@ -140,6 +142,11 @@ export function LeagueCard({ league }: { league: League }) {
                 {current.effective_multiplier > 1 && current.effective_multiplier < 2 && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex-shrink-0">
                     {current.effective_multiplier}×
+                  </span>
+                )}
+                {myPod?.is_playoff_week && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500 text-white flex-shrink-0">
+                    PLAYOFF
                   </span>
                 )}
               </div>
