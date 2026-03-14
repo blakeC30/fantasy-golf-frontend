@@ -15,8 +15,8 @@
  */
 
 import { useState, useRef, useLayoutEffect } from "react";
-import { Link, useParams } from "react-router-dom";
-import { useMyPicks, useTournamentLeaderboard, useGolferScorecard } from "../hooks/usePick";
+import { Link, useParams, useLocation } from "react-router-dom";
+import { useMyPicks, useTournamentLeaderboard, useTournamentSyncStatus, useGolferScorecard } from "../hooks/usePick";
 import { GolferAvatar } from "../components/GolferAvatar";
 import { fmtTournamentName } from "../utils";
 import type { LeaderboardEntry, HoleResult } from "../api/endpoints";
@@ -80,15 +80,17 @@ function ScorecardPanel({
   entry,
   availableRounds,
   colSpan,
+  isLive,
 }: {
   tournamentId: string;
   entry: LeaderboardEntry;
   availableRounds: number[];
   colSpan: number;
+  isLive: boolean;
 }) {
   const [round, setRound] = useState<number>(availableRounds[availableRounds.length - 1] ?? 1);
   const [showLegend, setShowLegend] = useState(false);
-  const { data: scorecard, isLoading } = useGolferScorecard(tournamentId, entry.golfer_id, round);
+  const { data: scorecard, isLoading } = useGolferScorecard(tournamentId, entry.golfer_id, round, isLive);
 
   const isPlayoff = round > 4;
 
@@ -352,12 +354,21 @@ function ScorecardPanel({
 
 export function TournamentDetail() {
   const { leagueId, tournamentId } = useParams<{ leagueId: string; tournamentId: string }>();
+  const location = useLocation();
   const [expandedGolferId, setExpandedGolferId] = useState<string | null>(null);
 
   const { data: leaderboard, isLoading, error } = useTournamentLeaderboard(tournamentId);
+  // Polls sync-status every 30 s and auto-invalidates the leaderboard query when
+  // last_synced_at changes, ensuring the table only refreshes after a full sync.
+  useTournamentSyncStatus(tournamentId);
   const { data: myPicks } = useMyPicks(leagueId!);
 
   const myPickedGolferId = myPicks?.find((p) => p.tournament_id === tournamentId)?.golfer_id ?? null;
+
+  // Playoff picks passed via router state when navigating from MyPicks for a playoff tournament.
+  // These are used to star the assigned golfers on the leaderboard instead of a regular pick.
+  const playoffPickNames: string[] = (location.state as { playoffPickNames?: string[] } | null)?.playoffPickNames ?? [];
+  const playoffPickSet = new Set(playoffPickNames);
 
   if (isLoading) {
     return (
@@ -384,6 +395,17 @@ export function TournamentDetail() {
   const isCompleted = leaderboard.tournament_status === "completed";
   const isTeamEvent = leaderboard.is_team_event;
 
+  // The "current round" is the highest round number where any golfer has started
+  // (thru > 0). All Today/Thru display and tie-breaking thru sorts are anchored to
+  // this round so every row reflects the same round consistently.
+  const currentRoundNumber = !isCompleted
+    ? leaderboard.entries.reduce(
+        (max, e) => e.rounds.reduce(
+          (m, rd) => (rd.thru !== null && rd.thru > 0 ? Math.max(m, rd.round_number) : m), max
+        ), 1
+      )
+    : 0;
+
   // For team events, deduplicate entries so each pair appears once.
   // Both partners share the same position/score — we keep the first occurrence
   // of each team (by sort order) and skip the partner entry when we encounter it.
@@ -399,28 +421,30 @@ export function TournamentDetail() {
       });
     }
 
-    // For live tournaments, break ties within the same score by:
-    // 1. Thru descending (more holes played ranks higher)
-    // 2. Name ascending (alphabetical tiebreaker)
+    // For live tournaments, sort by:
+    // 1. WD/DQ always last
+    // 2. Score ascending (nulls last)
+    // 3. Thru descending within the current round (more holes played ranks higher)
+    // 4. Name ascending (alphabetical tiebreaker)
     if (!isCompleted) {
+      // Only WD/DQ are forced to the absolute bottom.
+      // CUT/MDF golfers sort normally by score — the cut line separator (showCutLine) handles their visual grouping.
+      const isOut = (e: typeof entries[0]) =>
+        e.status === "WD" || e.status === "DQ";
       const getThru = (e: typeof entries[0]): number => {
-        const rd =
-          e.rounds.find((x) => x.thru !== null && x.thru > 0 && x.thru < 18) ??
-          e.rounds.filter((x) => x.thru === 18).sort((a, b) => b.round_number - a.round_number)[0] ??
-          null;
+        const rd = e.rounds.find((x) => x.round_number === currentRoundNumber);
         return rd?.thru ?? -1;
       };
       entries = [...entries].sort((a, b) => {
+        const aOut = isOut(a), bOut = isOut(b);
+        if (aOut !== bOut) return aOut ? 1 : -1;
         if (a.total_score_to_par !== b.total_score_to_par) {
-          // Preserve primary score ordering (nulls last)
           if (a.total_score_to_par === null) return 1;
           if (b.total_score_to_par === null) return -1;
           return a.total_score_to_par - b.total_score_to_par;
         }
-        // Tied score: more holes played ranks higher
         const thruDiff = getThru(b) - getThru(a);
         if (thruDiff !== 0) return thruDiff;
-        // Same thru: alphabetical
         return a.golfer_name.localeCompare(b.golfer_name);
       });
     }
@@ -437,6 +461,7 @@ export function TournamentDetail() {
       )
     ),
   ].sort((a, b) => a - b);
+
 
   function posLabel(entry: LeaderboardEntry): string {
     if (entry.finish_position !== null) {
@@ -482,8 +507,8 @@ export function TournamentDetail() {
           {isCompleted ? "Final" : "Live"}
         </p>
         <p className="text-xl font-bold">{fmtTournamentName(leaderboard.tournament_name)}</p>
-        {myPickedGolferId && (
-          <p className="text-sm text-green-300 mt-1">Your pick is highlighted below</p>
+        {(myPickedGolferId || playoffPickNames.length > 0) && (
+          <p className="text-sm text-green-300 mt-1">Your pick{playoffPickNames.length > 1 ? "s are" : " is"} highlighted below</p>
         )}
       </div>
 
@@ -521,7 +546,8 @@ export function TournamentDetail() {
               </thead>
               <tbody>
                 {displayEntries.map((entry, idx) => {
-                  const isMyPick = myPickedGolferId !== null && (entry.golfer_id === myPickedGolferId || entry.partner_golfer_id === myPickedGolferId);
+                  const isMyPick = (myPickedGolferId !== null && (entry.golfer_id === myPickedGolferId || entry.partner_golfer_id === myPickedGolferId))
+                    || playoffPickSet.has(entry.golfer_name);
                   const isFaded = isWithdrawnOrCut(entry);
                   const isExpanded = expandedGolferId === entry.golfer_id;
 
@@ -628,17 +654,22 @@ export function TournamentDetail() {
                         {isLive && (() => {
                           // Priority: a round actively in progress (0 < thru < 18),
                           // then the most recently completed round (thru === 18).
-                          const activeRd =
-                            entry.rounds.find((x) => x.thru !== null && x.thru > 0 && x.thru < 18) ??
-                            entry.rounds
-                              .filter((x) => x.thru === 18)
-                              .sort((a, b) => b.round_number - a.round_number)[0] ??
-                            null;
-                          const todayStp = activeRd ? activeRd.score_to_par : null;
-                          const thruLabel =
-                            activeRd === null || (activeRd.thru ?? 0) === 0 ? "—" :
-                            activeRd.thru === 18 ? "F" :
-                            `${activeRd.thru}${activeRd.started_on_back ? "*" : ""}`;
+                          // Anchor to the current round so every row reflects the same round.
+                          const currentRd = entry.rounds.find((x) => x.round_number === currentRoundNumber) ?? null;
+                          const notStarted = currentRd === null || (currentRd.thru === null || currentRd.thru === 0);
+                          const todayStp = !notStarted ? currentRd!.score_to_par : null;
+                          const nextRd = entry.rounds.find((x) => x.round_number === currentRoundNumber + 1) ?? null;
+                          const thruLabel = notStarted
+                            ? currentRd?.tee_time
+                                ? new Date(currentRd.tee_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) +
+                                  (currentRd.started_on_back ? "*" : "")
+                                : "—"
+                            : currentRd!.thru === 18
+                            ? nextRd?.tee_time
+                                ? new Date(nextRd.tee_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) +
+                                  (nextRd.started_on_back ? "*" : "")
+                                : "F"
+                            : `${currentRd!.thru}${currentRd!.started_on_back ? "*" : ""}`;
                           return (
                             <>
                               <td className={`px-2 py-3 text-xs text-center tabular-nums font-semibold ${todayStp !== null ? stpClass(todayStp) : "text-gray-300"}`}>
@@ -692,6 +723,7 @@ export function TournamentDetail() {
                           entry={entry}
                           availableRounds={availableRounds}
                           colSpan={totalCols}
+                          isLive={isLive}
                         />
                       )}
                     </>

@@ -107,6 +107,12 @@ export function Login() {
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
+
+          <div className="text-center">
+            <Link to="/forgot-password" className="text-sm text-green-700 hover:text-green-900 font-medium transition-colors">
+              Forgot your password?
+            </Link>
+          </div>
         </form>
 
         {/* Divider */}

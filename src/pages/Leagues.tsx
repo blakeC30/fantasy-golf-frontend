@@ -65,9 +65,6 @@ export function Leagues() {
               <div key={String(req.league_id)} className="flex items-center gap-4 px-5 py-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{req.league_name}</p>
-                  {req.league_description && (
-                    <p className="text-xs text-gray-400 truncate">{req.league_description}</p>
-                  )}
                 </div>
                 <span className="flex-shrink-0 text-xs font-bold bg-amber-200 text-amber-800 px-2.5 py-1 rounded-full">
                   Pending approval

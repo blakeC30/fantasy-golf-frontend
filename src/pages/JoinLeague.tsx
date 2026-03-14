@@ -108,9 +108,6 @@ function JoinLeagueForm({ inviteCode }: { inviteCode: string }) {
               You're already a member
             </p>
             <h1 className="text-2xl font-bold text-gray-900">{preview.name}</h1>
-            {preview.description && (
-              <p className="text-sm text-gray-500">{preview.description}</p>
-            )}
           </div>
           <button
             onClick={() => navigate(`/leagues/${preview.league_id}`)}
@@ -158,9 +155,6 @@ function JoinLeagueForm({ inviteCode }: { inviteCode: string }) {
               : "You've been invited to join"}
           </p>
           <h1 className="text-2xl font-bold text-gray-900">{preview.name}</h1>
-          {preview.description && (
-            <p className="text-sm text-gray-500">{preview.description}</p>
-          )}
           <p className="text-xs text-gray-400">
             {preview.member_count} member{preview.member_count !== 1 ? "s" : ""}
           </p>

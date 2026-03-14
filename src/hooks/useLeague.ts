@@ -23,7 +23,7 @@ export function useLeague(leagueId: string) {
 export function useUpdateLeague(leagueId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name?: string; description?: string | null; no_pick_penalty?: number }) =>
+    mutationFn: (data: { name?: string; no_pick_penalty?: number }) =>
       leaguesApi.update(leagueId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["league", leagueId] });
@@ -45,13 +45,11 @@ export function useCreateLeague() {
   return useMutation({
     mutationFn: ({
       name,
-      description,
       no_pick_penalty,
     }: {
       name: string;
-      description?: string;
       no_pick_penalty?: number;
-    }) => leaguesApi.create(name, description, no_pick_penalty),
+    }) => leaguesApi.create(name, no_pick_penalty),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["myLeagues"] }),
   });
 }

@@ -27,7 +27,6 @@ export interface TokenResponse {
 export interface League {
   id: string;
   name: string;
-  description: string | null;
   no_pick_penalty: number;
   invite_code: string;
   is_public: boolean;
@@ -60,6 +59,8 @@ export interface LeagueTournamentOut extends Tournament {
   effective_multiplier: number;
   // true when tournament is in_progress AND every Round 1 tee time has passed — pick window permanently closed.
   all_r1_teed_off: boolean;
+  // true when this tournament is assigned to a PlayoffRound for this league.
+  is_playoff_round: boolean;
 }
 
 export interface Golfer {
@@ -108,7 +109,6 @@ export interface StandingsRow {
 export interface LeagueJoinPreview {
   league_id: string;
   name: string;
-  description: string | null;
   member_count: number;
   /** null = no relationship, "pending" = awaiting approval, "approved" = already a member */
   user_status: "pending" | "approved" | null;
@@ -117,7 +117,6 @@ export interface LeagueJoinPreview {
 export interface LeagueRequestOut {
   league_id: string;
   league_name: string;
-  league_description: string | null;
   requested_at: string;
 }
 
@@ -178,7 +177,14 @@ export interface Leaderboard {
   tournament_name: string;
   tournament_status: string;
   is_team_event: boolean;
+  last_synced_at: string | null;
   entries: LeaderboardEntry[];
+}
+
+export interface TournamentSyncStatus {
+  tournament_id: string;
+  tournament_status: string;
+  last_synced_at: string | null;
 }
 
 export type HoleResult =
@@ -263,6 +269,12 @@ export const authApi = {
 
   logout: () =>
     api.post("/auth/logout").then((r) => r.data),
+
+  forgotPassword: (email: string) =>
+    api.post<{ detail: string }>("/auth/forgot-password", { email }).then((r) => r.data),
+
+  resetPassword: (token: string, new_password: string) =>
+    api.post<TokenResponse>("/auth/reset-password", { token, new_password }).then((r) => r.data),
 };
 
 // ---------------------------------------------------------------------------
@@ -285,13 +297,13 @@ export const usersApi = {
 // ---------------------------------------------------------------------------
 
 export const leaguesApi = {
-  create: (name: string, description?: string, no_pick_penalty?: number) =>
-    api.post<League>("/leagues", { name, description, no_pick_penalty }).then((r) => r.data),
+  create: (name: string, no_pick_penalty?: number) =>
+    api.post<League>("/leagues", { name, no_pick_penalty }).then((r) => r.data),
 
   get: (leagueId: string) =>
     api.get<League>(`/leagues/${leagueId}`).then((r) => r.data),
 
-  update: (leagueId: string, data: { name?: string; description?: string | null; no_pick_penalty?: number }) =>
+  update: (leagueId: string, data: { name?: string; no_pick_penalty?: number }) =>
     api.patch<League>(`/leagues/${leagueId}`, data).then((r) => r.data),
 
   leave: (leagueId: string) =>
@@ -353,6 +365,9 @@ export const tournamentsApi = {
 
   leaderboard: (id: string) =>
     api.get<Leaderboard>(`/tournaments/${id}/leaderboard`).then((r) => r.data),
+
+  syncStatus: (id: string) =>
+    api.get<TournamentSyncStatus>(`/tournaments/${id}/sync-status`).then((r) => r.data),
 
   scorecard: (tournamentId: string, golferId: string, round: number) =>
     api

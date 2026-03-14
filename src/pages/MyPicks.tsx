@@ -12,7 +12,7 @@ import { GolferAvatar } from "../components/GolferAvatar";
 import { FlagIcon } from "../components/FlagIcon";
 import { fmtTournamentName } from "../utils";
 import { useDropdownDirection } from "../hooks/useDropdownDirection";
-import { useMyPlayoffPicks, useBracket } from "../hooks/usePlayoff";
+import { useMyPlayoffPicks, useBracket, useMyPlayoffPod } from "../hooks/usePlayoff";
 
 function formatPoints(pts: number | null): string {
   if (pts === null) return "—";
@@ -92,6 +92,7 @@ export function MyPicks() {
   const { data: league } = useLeague(leagueId!);
   const { data: myPicksData, isLoading } = useMyPicks(leagueId!);
   const { data: myPlayoffPicks } = useMyPlayoffPicks(leagueId!);
+  const { data: myPod } = useMyPlayoffPod(leagueId!);
   const { data: bracket } = useBracket(leagueId!);
   const approvedMembers = members?.filter((m) => m.status === "approved") ?? [];
 
@@ -139,11 +140,13 @@ export function MyPicks() {
     (myPlayoffPicks ?? []).map((p) => [p.tournament_id, p])
   );
 
-  // Set of tournament IDs that belong to a playoff round — used to exclude them
-  // from regular-season no-pick penalty calculations and to route rendering.
+  // Set of tournament IDs that belong to a playoff round — derived directly from
+  // the is_playoff_round field on each LeagueTournamentOut (set by the backend when
+  // the tournament is assigned to a PlayoffRound for this league). This is the
+  // authoritative source; bracket/myPod/myPicks are not needed for this check.
   const playoffTournamentIds = useMemo(
-    () => new Set(bracket?.rounds.map((r) => r.tournament_id).filter(Boolean) ?? []),
-    [bracket]
+    () => new Set((leagueTournaments ?? []).filter((t) => t.is_playoff_round).map((t) => t.id)),
+    [leagueTournaments]
   );
 
   type OtherPlayoffEntry = { status: string; picks: { id: string; pod_member_id: number; golfer_id: string; golfer_name: string; draft_slot: number; points_earned: number | null; created_at: string }[]; total_points: number | null };
@@ -442,7 +445,20 @@ export function MyPicks() {
             const otherPlayoffData = !isViewingSelf ? otherMemberPlayoffMap.get(tournament.id) : undefined;
             const playoffData = ownPlayoffData ?? otherPlayoffData;
 
-            const isClickable = tournament.status === "in_progress" || tournament.status === "completed";
+            // Playoff rows: scheduled → playoff page; in_progress/completed → tournament detail
+            // with state containing the resolved pick names for starring.
+            const playoffPickNames = isPlayoffTournament ? (playoffData?.picks.map((p) => p.golfer_name) ?? []) : [];
+            const isClickable = isPlayoffTournament
+              ? !!(playoffData || (myPod?.tournament_id === tournament.id && myPod?.is_in_playoffs))
+              : tournament.status === "in_progress" || tournament.status === "completed";
+            const rowLinkTarget = isPlayoffTournament && tournament.status !== "scheduled"
+              ? `/leagues/${leagueId}/tournaments/${tournament.id}`
+              : isPlayoffTournament
+              ? `/leagues/${leagueId}/playoff`
+              : `/leagues/${leagueId}/tournaments/${tournament.id}`;
+            const rowLinkState = isPlayoffTournament && tournament.status !== "scheduled" && playoffPickNames.length > 0
+              ? { playoffPickNames }
+              : undefined;
 
             // Red border only for regular-season missed picks; playoff penalty is shown inline.
             const hasMissedRegularPick = !isPlayoffTournament && !pick && completedTournaments.some((t) => t.id === tournament.id);
@@ -468,13 +484,20 @@ export function MyPicks() {
                     }
                     const { picks: poPicks, total_points, status: roundStatus } = playoffData;
                     if (roundStatus === "drafting") {
-                      // Window open — show preference submission status.
                       if (isViewingSelf) {
-                        const submittedCount = ownPlayoffData?.picks.length ?? 0;
-                        return (
-                          <p className="text-sm font-medium text-gray-500 text-right">
-                            {submittedCount > 0 ? `${submittedCount} ranked` : "No preferences yet"}
-                          </p>
+                        // Use myPod.has_submitted for the active round — my-picks returns picks=[]
+                        // before the draft resolves, so picks.length can't tell us if prefs were submitted.
+                        const isActiveRound = myPod?.tournament_id === tournament.id;
+                        const hasSubmitted = isActiveRound ? (myPod?.has_submitted ?? false) : poPicks.length > 0;
+                        return hasSubmitted ? (
+                          <div className="flex items-center gap-1.5 text-green-700">
+                            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                            </svg>
+                            <p className="text-sm font-semibold">Pick submitted</p>
+                          </div>
+                        ) : (
+                          <p className="text-sm font-medium text-amber-500">No pick yet</p>
                         );
                       }
                       return <p className="text-sm font-medium text-gray-400 text-right">Picks hidden</p>;
@@ -490,6 +513,10 @@ export function MyPicks() {
                             <p className="text-sm text-gray-400">In progress</p>
                           </div>
                         );
+                      }
+                      // Own picks are never hidden — empty means no picks were assigned
+                      if (isViewingSelf) {
+                        return <p className="text-sm font-medium text-gray-400 text-right">No picks assigned</p>;
                       }
                       return <p className="text-sm font-medium text-gray-400 text-right">Picks hidden</p>;
                     }
@@ -587,7 +614,8 @@ export function MyPicks() {
             return isClickable ? (
               <Link
                 key={key}
-                to={`/leagues/${leagueId}/tournaments/${tournament.id}`}
+                to={rowLinkTarget}
+                state={rowLinkState}
                 className={rowClass}
               >
                 {rowContent}

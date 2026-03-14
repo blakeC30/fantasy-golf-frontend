@@ -212,7 +212,7 @@ export function PlayoffDraft() {
       {!isDraftOpen && !isResolved && isInPod && (
         <div className="bg-gray-50 rounded-2xl p-6 text-center">
           <p className="text-sm text-gray-400">
-            Preference submission is not open yet. Check back when the manager opens it.
+            Preferences are not open yet. The window opens automatically once the previous round completes.
           </p>
         </div>
       )}

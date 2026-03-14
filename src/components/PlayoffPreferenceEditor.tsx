@@ -19,11 +19,12 @@ interface PlayoffPreferenceEditorProps {
   picksPerRound?: number;
   requiredCount?: number;   // pod_size * picks_per_round — exact number to submit
   deadline?: string;        // ISO datetime; preferences lock when this moment passes
-  onSaveSuccess?: () => void;
+  onSaveSuccess?: (count: number, wasUpdate: boolean) => void;
 }
 
 export function PlayoffPreferenceEditor(props: PlayoffPreferenceEditorProps) {
   const { leagueId, podId, tournamentId, currentPreferences, picksPerRound, requiredCount, deadline, onSaveSuccess } = props;
+  const hadExistingPreferences = currentPreferences.length > 0;
 
   // Preferences are locked once the first R1 tee time has passed.
   const isWindowClosed = deadline ? new Date() >= new Date(deadline) : false;
@@ -97,7 +98,7 @@ export function PlayoffPreferenceEditor(props: PlayoffPreferenceEditorProps) {
     submit.mutate(ranked, {
       onSuccess: () => {
         setSaveSuccess(true);
-        onSaveSuccess?.();
+        onSaveSuccess?.(ranked.length, hadExistingPreferences);
       },
       onError: (e) =>
         setSaveError(

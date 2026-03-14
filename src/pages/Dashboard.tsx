@@ -12,7 +12,7 @@ import { fmtTournamentName } from "../utils";
 import { useMyPicks, useStandings } from "../hooks/usePick";
 import { useAuthStore } from "../store/authStore";
 import { GolferAvatar } from "../components/GolferAvatar";
-import { usePlayoffConfig, useMyPlayoffPod } from "../hooks/usePlayoff";
+import { usePlayoffConfig, useMyPlayoffPod, useMyPlayoffPicks } from "../hooks/usePlayoff";
 import type { StandingsRow } from "../api/endpoints";
 
 // ---------------------------------------------------------------------------
@@ -93,6 +93,7 @@ export function Dashboard() {
   const { data: standings } = useStandings(leagueId!);
   const { data: playoffConfig } = usePlayoffConfig(leagueId!);
   const { data: myPod } = useMyPlayoffPod(leagueId!);
+  const { data: myPlayoffPicks } = useMyPlayoffPicks(leagueId!);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const hasPlayoff = playoffConfig && playoffConfig.playoff_size > 0;
 
@@ -209,7 +210,8 @@ export function Dashboard() {
               // Playoff week cases
               if (myPod?.is_playoff_week) {
                 if (myPod.is_in_playoffs) {
-                  if (myPod.round_status === "drafting" || myPod.round_status === "pending") {
+                  const tournamentStarted = active?.status === "in_progress" || active?.status === "completed";
+                  if (!tournamentStarted && (myPod.round_status === "drafting" || myPod.round_status === "pending")) {
                     return (
                       <>
                         <div className="flex items-center gap-3">
@@ -222,7 +224,7 @@ export function Dashboard() {
                               </div>
                               <div>
                                 <p className="text-xs text-gray-400 font-medium">Playoff picks</p>
-                                <p className="text-base font-bold text-gray-900">{myPod.submitted_count} golfer{myPod.submitted_count !== 1 ? "s" : ""} ranked ✓</p>
+                                <p className="text-base font-bold text-gray-900">Rankings submitted</p>
                               </div>
                             </>
                           ) : (
@@ -246,16 +248,25 @@ export function Dashboard() {
                     );
                   }
                   if (myPod.round_status === "locked") {
+                    const resolvedPicks = myPod.tournament_id
+                      ? (myPlayoffPicks ?? []).find((p) => p.tournament_id === myPod.tournament_id)?.picks ?? []
+                      : [];
                     return (
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                        <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                           </svg>
                         </div>
                         <div>
                           <p className="text-xs text-gray-400 font-medium">Playoff picks</p>
-                          <p className="text-base font-bold text-gray-700">Picks submitted</p>
+                          {resolvedPicks.length > 0 ? (
+                            <p className="text-base font-bold text-gray-900">
+                              {resolvedPicks.map((p) => p.golfer_name).join(", ")}
+                            </p>
+                          ) : (
+                            <p className="text-base font-bold text-gray-700">Picks submitted</p>
+                          )}
                         </div>
                       </div>
                     );

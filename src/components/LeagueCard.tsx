@@ -84,11 +84,6 @@ export function LeagueCard({ league }: { league: League }) {
             </span>
           )}
         </div>
-        {league.description && (
-          <p className="text-sm text-green-200 leading-relaxed mt-0.5 line-clamp-2">
-            {league.description}
-          </p>
-        )}
       </div>
 
       {/* Stats row */}
@@ -160,7 +155,7 @@ export function LeagueCard({ league }: { league: League }) {
                     <span className="ml-0.5 text-[10px] text-gray-400 font-normal">· locked</span>
                   )}
                 </p>
-              ) : current.status === "scheduled" ? (
+              ) : current.status === "scheduled" || (current.status === "in_progress" && !current.all_r1_teed_off) ? (
                 <p className="text-[11px] text-amber-600 font-medium mt-0.5 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 inline-block" />
                   No pick yet
@@ -169,7 +164,7 @@ export function LeagueCard({ league }: { league: League }) {
                 <p className="text-[11px] text-gray-400 mt-0.5">Pick window closed</p>
               )}
             </div>
-            {!myPickForCurrent && current.status === "scheduled" && (
+            {!myPickForCurrent && (current.status === "scheduled" || (current.status === "in_progress" && !current.all_r1_teed_off)) && (
               <button
                 onClick={(e) => {
                   e.preventDefault();

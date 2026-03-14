@@ -24,6 +24,8 @@ import { CreateLeague } from "./pages/CreateLeague";
 import { TournamentDetail } from "./pages/TournamentDetail";
 import { PlayoffBracket } from "./pages/PlayoffBracket";
 import { PlayoffDraft } from "./pages/PlayoffDraft";
+import { ForgotPassword } from "./pages/ForgotPassword";
+import { ResetPassword } from "./pages/ResetPassword";
 
 export default function App() {
   return (
@@ -32,6 +34,8 @@ export default function App() {
       <Route path="/" element={<Welcome />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/join/:inviteCode" element={<JoinLeague />} />
 
       {/* Auth-guarded — all share the Layout shell */}

@@ -3,6 +3,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { golfersApi, picksApi, standingsApi, tournamentsApi } from "../api/endpoints";
 
 export function useTournaments(status?: "scheduled" | "in_progress" | "completed") {
@@ -89,19 +90,57 @@ export function useTournamentLeaderboard(tournamentId: string | undefined) {
     queryKey: ["tournamentLeaderboard", tournamentId],
     queryFn: () => tournamentsApi.leaderboard(tournamentId!),
     enabled: !!tournamentId,
-    refetchInterval: 60_000, // auto-refresh every minute for live tournaments
+    // No self-polling — useTournamentSyncStatus drives invalidation instead,
+    // ensuring the leaderboard only refreshes after a full sync completes.
   });
+}
+
+/**
+ * Polls the lightweight sync-status endpoint every 30 s while a tournament is
+ * in_progress.  When last_synced_at changes (new sync just completed), it
+ * invalidates the full leaderboard query so the table shows fresh data without
+ * ever catching the DB mid-sync.
+ */
+export function useTournamentSyncStatus(tournamentId: string | undefined) {
+  const qc = useQueryClient();
+  const prevSyncedAt = useRef<string | null | undefined>(undefined);
+
+  const query = useQuery({
+    queryKey: ["tournamentSyncStatus", tournamentId],
+    queryFn: () => tournamentsApi.syncStatus(tournamentId!),
+    enabled: !!tournamentId,
+    refetchInterval: (q) =>
+      q.state.data?.tournament_status === "in_progress" ? 30_000 : false,
+  });
+
+  useEffect(() => {
+    const newSyncedAt = query.data?.last_synced_at;
+    // Skip the first render (prevSyncedAt.current is undefined sentinel).
+    if (prevSyncedAt.current === undefined) {
+      prevSyncedAt.current = newSyncedAt ?? null;
+      return;
+    }
+    if (newSyncedAt !== prevSyncedAt.current) {
+      prevSyncedAt.current = newSyncedAt ?? null;
+      qc.invalidateQueries({ queryKey: ["tournamentLeaderboard", tournamentId] });
+    }
+  }, [query.data?.last_synced_at, tournamentId, qc]);
+
+  return query;
 }
 
 export function useGolferScorecard(
   tournamentId: string | undefined,
   golferId: string | null,
   round: number,
+  isLive = false,
 ) {
   return useQuery({
     queryKey: ["golferScorecard", tournamentId, golferId, round],
     queryFn: () => tournamentsApi.scorecard(tournamentId!, golferId!, round),
     enabled: !!tournamentId && !!golferId,
+    // Keep open scorecards in sync during a live tournament.
+    refetchInterval: isLive ? 60_000 : false,
   });
 }
 

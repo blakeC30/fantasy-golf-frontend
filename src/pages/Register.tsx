@@ -10,12 +10,17 @@ export function Register() {
   const next = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
@@ -105,6 +110,21 @@ export function Register() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition-shadow"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              Confirm password
+            </label>
+            <input
+              id="confirmPassword"
+              type="password"
+              placeholder="Re-enter your password"
+              required
+              minLength={8}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition-shadow"
             />
           </div>

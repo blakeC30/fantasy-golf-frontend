@@ -204,13 +204,11 @@ export function ManageLeague() {
   const updateLeague = useUpdateLeague(leagueId!);
   const [settingsEditing, setSettingsEditing] = useState(false);
   const [settingsName, setSettingsName] = useState("");
-  const [settingsDescription, setSettingsDescription] = useState("");
   const [settingsNoPick, setSettingsNoPick] = useState(-50000);
 
   useEffect(() => {
     if (league) {
       setSettingsName(league.name);
-      setSettingsDescription(league.description ?? "");
       setSettingsNoPick(league.no_pick_penalty);
     }
   }, [league]);
@@ -218,7 +216,6 @@ export function ManageLeague() {
   function handleCancelSettings() {
     if (league) {
       setSettingsName(league.name);
-      setSettingsDescription(league.description ?? "");
       setSettingsNoPick(league.no_pick_penalty);
     }
     setSettingsEditing(false);
@@ -227,7 +224,6 @@ export function ManageLeague() {
   async function handleSaveSettings() {
     await updateLeague.mutateAsync({
       name: settingsName,
-      description: settingsDescription || null,
       no_pick_penalty: settingsNoPick,
     });
     setSettingsEditing(false);
@@ -469,11 +465,13 @@ export function ManageLeague() {
     return acc;
   }, {});
 
-  // True once the last tournament in the saved schedule has completed.
-  // The schedule is permanently locked at that point — no adds or removes allowed.
+  // True once the last REGULAR SEASON tournament has completed.
+  // Playoff tournaments are excluded — the schedule locks when the regular season ends.
   const isScheduleLocked = useMemo(() => {
     if (!leagueTournaments || leagueTournaments.length === 0) return false;
-    const last = [...leagueTournaments].sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+    const regularSeason = leagueTournaments.filter((t) => !t.is_playoff_round);
+    if (regularSeason.length === 0) return false;
+    const last = [...regularSeason].sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
     return last.status === "completed";
   }, [leagueTournaments]);
 
@@ -716,23 +714,6 @@ export function ManageLeague() {
                 />
               ) : (
                 <span className="text-sm font-medium text-gray-900 break-words">{league?.name}</span>
-              )}
-            </div>
-            {/* Description */}
-            <div className="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4 px-4 py-3">
-              <span className="text-sm text-gray-500 sm:w-36 sm:flex-shrink-0 sm:pt-1">Description</span>
-              {settingsEditing ? (
-                <textarea
-                  value={settingsDescription}
-                  onChange={(e) => setSettingsDescription(e.target.value)}
-                  rows={2}
-                  maxLength={200}
-                  className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-700 resize-none"
-                />
-              ) : (
-                <span className="text-sm text-gray-900 break-words">
-                  {league?.description || <span className="text-gray-400">No description</span>}
-                </span>
               )}
             </div>
             {/* No-pick penalty */}

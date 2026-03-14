@@ -29,8 +29,10 @@ src/
 │   ├── Welcome.tsx         # Public landing page — shown at / for unauthenticated visitors
 │   ├── Login.tsx
 │   ├── Register.tsx
+│   ├── ForgotPassword.tsx  # Request password reset email (public)
+│   ├── ResetPassword.tsx   # Set new password via reset token from URL (public)
 │   ├── Leagues.tsx         # Post-login landing — league list + create/join forms
-│   ├── CreateLeague.tsx    # Multi-step league creation wizard (name, description, schedule)
+│   ├── CreateLeague.tsx    # Multi-step league creation wizard (name, schedule, no-pick penalty)
 │   ├── Dashboard.tsx       # Per-league home — current tournament, pick status, standings
 │   ├── MakePick.tsx        # Golfer selection form for upcoming tournament
 │   ├── MyPicks.tsx         # Season pick history + stat cards
@@ -60,6 +62,8 @@ src/
 /                               → Welcome (public landing page; redirects to /leagues if already authenticated)
 /login                          → Login (public)
 /register                       → Register (public)
+/forgot-password                → ForgotPassword (public — request reset email)
+/reset-password?token=<tok>     → ResetPassword (public — set new password; token from email link)
 /join/:inviteCode               → JoinLeague (public, but redirects to login if unauthenticated)
 /leagues                        → Leagues (auth required)
 /leagues/:leagueId              → Dashboard
@@ -101,11 +105,15 @@ Always use these exact key shapes — mismatches cause stale data:
 | `["playoffPod", leagueId, podId]` | `usePodDetail(leagueId, podId)` |
 | `["playoffDraftStatus", leagueId, podId]` | `usePodDraftStatus(leagueId, podId)` — polls every 30s while drafting |
 | `["playoffPreferences", leagueId, podId]` | `useMyPreferences(leagueId, podId)` |
+| `["tournamentLeaderboard", tournamentId]` | `useTournamentLeaderboard(tournamentId)` — invalidated by sync-status polling, no self-refetch |
+| `["tournamentSyncStatus", tournamentId]` | `useTournamentSyncStatus(tournamentId)` — polls every 30s when in_progress; on `last_synced_at` change, invalidates `tournamentLeaderboard` |
 
 ## API Conventions
 
 - **Never import axios directly** — always use `src/api/client.ts`
 - All API functions live in `src/api/endpoints.ts`, grouped by domain (`authApi`, `leaguesApi`, `picksApi`, etc.)
+- `authApi.forgotPassword(email)` → `POST /auth/forgot-password` — always resolves 200; catch is for network errors only
+- `authApi.resetPassword(token, new_password)` → `POST /auth/reset-password` — returns `TokenResponse`; 400 = invalid/expired token
 - All functions return unwrapped data (not the Axios response object)
 - TypeScript interfaces in `endpoints.ts` mirror backend Pydantic schemas
 - On 401, the Axios interceptor silently refreshes via the httpOnly cookie, then retries. If refresh fails, it clears auth and redirects to `/login` (skips redirect from public pages to avoid loops)

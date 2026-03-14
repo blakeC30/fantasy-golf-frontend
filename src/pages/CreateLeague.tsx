@@ -1,9 +1,9 @@
 /**
  * CreateLeague — new league setup page.
  *
- * Lets the user configure name, description, no-pick penalty, and tournament
- * schedule before the league is created. All tournaments are pre-selected with
- * their global multipliers (majors = 2×, The Players = 1.5×, others = 1×).
+ * Lets the user configure name, no-pick penalty, and tournament schedule before
+ * the league is created. All tournaments are pre-selected with their global
+ * multipliers (majors = 2×, The Players = 1.5×, others = 1×).
  * Everything can be changed later from the Manage page.
  */
 
@@ -19,7 +19,6 @@ export function CreateLeague() {
   const qc = useQueryClient();
 
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [noPick, setNoPick] = useState(-50000);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -96,7 +95,7 @@ export function CreateLeague() {
     setError("");
     setLoading(true);
     try {
-      const league = await leaguesApi.create(name.trim(), description.trim() || undefined, noPick);
+      const league = await leaguesApi.create(name.trim(), noPick);
       const schedule = [...selectedIds].map((id) => ({
         tournament_id: id,
         multiplier: multipliers[id] ?? null,
@@ -152,20 +151,6 @@ export function CreateLeague() {
                 placeholder="e.g. Friday Night Golf"
                 maxLength={60}
                 className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition-shadow"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="leagueDescription" className="block text-sm font-medium text-gray-700">
-                Description <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <textarea
-                id="leagueDescription"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="A short description for your league members."
-                rows={2}
-                maxLength={200}
-                className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition-shadow resize-none"
               />
             </div>
           </div>
