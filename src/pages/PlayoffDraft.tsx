@@ -11,6 +11,7 @@
 
 import { Link, useParams } from "react-router-dom";
 import { FlagIcon } from "../components/FlagIcon";
+import { Spinner } from "../components/Spinner";
 import { PlayoffPreferenceEditor } from "../components/PlayoffPreferenceEditor";
 import { useAuthStore } from "../store/authStore";
 import {
@@ -114,7 +115,7 @@ export function PlayoffDraft() {
   const currentUser = useAuthStore((s) => s.user);
 
   const podIdNum = podId ? Number(podId) : null;
-  const { data: draftStatus, isLoading, isError } = usePodDraftStatus(leagueId!, podIdNum);
+  const { data: draftStatus, isLoading, isError, refetch } = usePodDraftStatus(leagueId!, podIdNum);
   const { data: myPreferences = [] } = useMyPreferences(leagueId!, podIdNum);
 
   // Get tournament_id from the bracket cache (bracket is typically already loaded from PlayoffBracket)
@@ -126,12 +127,32 @@ export function PlayoffDraft() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-48">
-        <p className="text-sm text-gray-400">Loading draft…</p>
+        <Spinner />
       </div>
     );
   }
 
-  if (isError || !draftStatus) {
+  if (isError) {
+    return (
+      <div className="bg-gray-50 rounded-2xl p-12 text-center space-y-3">
+        <div className="flex justify-center"><FlagIcon className="w-10 h-10 text-green-700" /></div>
+        <p className="font-semibold text-gray-700">Failed to load draft</p>
+        <div className="flex items-center justify-center gap-4">
+          <button
+            onClick={() => refetch()}
+            className="text-sm font-semibold text-green-700 hover:text-green-900 underline"
+          >
+            Try again
+          </button>
+          <Link to={`/leagues/${leagueId}/playoff`} className="text-sm font-semibold text-green-700 hover:text-green-900">
+            ← Back to Bracket
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!draftStatus) {
     return (
       <div className="bg-gray-50 rounded-2xl p-12 text-center space-y-3">
         <div className="flex justify-center"><FlagIcon className="w-10 h-10 text-green-700" /></div>

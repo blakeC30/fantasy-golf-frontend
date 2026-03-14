@@ -19,6 +19,7 @@ import { useAuthStore } from "../store/authStore";
 import { fmtTournamentName } from "../utils";
 import type { GolferPickGroup, PlayoffRoundOut, StandingsRow } from "../api/endpoints";
 import { useDropdownDirection } from "../hooks/useDropdownDirection";
+import { Spinner } from "../components/Spinner";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -339,6 +340,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
   const dropdownInputRef = useRef<HTMLInputElement>(null);
   const dropDir = useDropdownDirection(dropdownRef, dropdownOpen);
 
@@ -435,8 +437,19 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
     <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-lg font-bold text-gray-900">Tournament Breakdown</h2>
-        <div ref={dropdownRef} className="relative w-full sm:w-auto">
+        <div
+          ref={dropdownRef}
+          className="relative w-full sm:w-auto"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setDropdownOpen(false);
+              setDropdownSearch("");
+              dropdownTriggerRef.current?.focus();
+            }
+          }}
+        >
           <button
+            ref={dropdownTriggerRef}
             type="button"
             onClick={() => { setDropdownOpen((o) => !o); setDropdownSearch(""); }}
             className="w-full sm:min-w-[220px] flex items-center gap-2 text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-700 transition-colors"
@@ -518,7 +531,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
       )}
 
       {selectedId && isLoading && (
-        <p className="text-gray-400 text-sm">Loading picks…</p>
+        <div className="flex justify-center py-4"><Spinner /></div>
       )}
 
       {selectedId && !isScheduled && !isLoading && !selectedPlayoffRound && error && (
@@ -687,6 +700,7 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                     className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-green-600 focus:border-green-600"
                   />
                 </div>
+                <div className="relative">
                 <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gradient-to-r from-green-900 to-green-700 text-white">
@@ -759,7 +773,9 @@ function TournamentPicksSection({ leagueId }: { leagueId: string }) {
                   </tbody>
                 </table>
               </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white to-transparent sm:hidden" />
               </div>
+            </div>
             );
           })()}
 
@@ -892,7 +908,7 @@ export function Leaderboard() {
 
       {/* Season standings */}
       {isLoading ? (
-        <p className="text-gray-400">Loading…</p>
+        <div className="flex justify-center py-8"><Spinner /></div>
       ) : standings ? (
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-xl border border-gray-200">

@@ -22,6 +22,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useJoinByCode, useJoinPreview, useCancelMyRequest } from "../hooks/useLeague";
 import { FlagIcon } from "../components/FlagIcon";
+import { Spinner } from "../components/Spinner";
 
 function GradientShell({ children }: { children: React.ReactNode }) {
   return (
@@ -43,7 +44,7 @@ export function JoinLeague() {
   if (bootstrapping) {
     return (
       <GradientShell>
-        <p className="text-green-300 text-sm">Loading…</p>
+        <Spinner className="w-6 h-6 text-green-300" />
       </GradientShell>
     );
   }
@@ -66,7 +67,7 @@ function JoinLeagueForm({ inviteCode }: { inviteCode: string }) {
   if (isLoading) {
     return (
       <GradientShell>
-        <p className="text-green-300 text-sm">Loading…</p>
+        <Spinner className="w-6 h-6 text-green-300" />
       </GradientShell>
     );
   }

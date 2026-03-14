@@ -7,6 +7,7 @@
  */
 
 import { Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "./components/Toaster";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
@@ -30,6 +31,7 @@ import { LeagueRules } from "./pages/LeagueRules";
 
 export default function App() {
   return (
+    <>
     <Routes>
       {/* Public */}
       <Route path="/" element={<Welcome />} />
@@ -59,5 +61,7 @@ export default function App() {
       {/* Unknown routes: send to welcome */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <Toaster />
+    </>
   );
 }

@@ -13,6 +13,7 @@ import { FlagIcon } from "../components/FlagIcon";
 import { fmtTournamentName } from "../utils";
 import { useDropdownDirection } from "../hooks/useDropdownDirection";
 import { useMyPlayoffPicks, useBracket, useMyPlayoffPod } from "../hooks/usePlayoff";
+import { Spinner } from "../components/Spinner";
 
 function formatPoints(pts: number | null): string {
   if (pts === null) return "—";
@@ -68,6 +69,7 @@ export function MyPicks() {
   const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
   const [memberDropdownSearch, setMemberDropdownSearch] = useState("");
   const memberDropdownRef = useRef<HTMLDivElement>(null);
+  const memberDropdownTriggerRef = useRef<HTMLButtonElement>(null);
   const memberDropdownInputRef = useRef<HTMLInputElement>(null);
   const memberDropDir = useDropdownDirection(memberDropdownRef, memberDropdownOpen);
 
@@ -216,7 +218,6 @@ export function MyPicks() {
   );
   const finalTournamentCount = completedTournaments.filter((t) => t.status === "completed").length;
   const avgEarnings = finalTournamentCount > 0 ? totalEarned / finalTournamentCount : null;
-  const showStats = completedTournaments.length > 0;
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("default");
   const [sortField, setSortField] = useState<SortField>("date");
@@ -299,8 +300,19 @@ export function MyPicks() {
             )
           : sortedMembers;
         return (
-          <div ref={memberDropdownRef} className="relative inline-block">
+          <div
+            ref={memberDropdownRef}
+            className="relative inline-block"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setMemberDropdownOpen(false);
+                setMemberDropdownSearch("");
+                memberDropdownTriggerRef.current?.focus();
+              }
+            }}
+          >
             <button
+              ref={memberDropdownTriggerRef}
               type="button"
               onClick={() => { setMemberDropdownOpen((o) => !o); setMemberDropdownSearch(""); }}
               className="min-w-[180px] flex items-center gap-2 text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-700 transition-colors"
@@ -375,9 +387,8 @@ export function MyPicks() {
         </div>
       )}
 
-      {/* Stats grid — only shown once at least one pick has been scored */}
-      {showStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Stats grid — always shown; individual cards fall back to "—" before any picks are scored */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard
             label="Submission Rate"
             value={finalTournamentCount === 0 ? "—" : `${Math.round((submittedForFinal.length / finalTournamentCount) * 100)}%`}
@@ -398,10 +409,9 @@ export function MyPicks() {
             value={formatPoints(avgEarnings !== null ? Math.round(avgEarnings) : null)}
           />
         </div>
-      )}
 
       {isLoading ? (
-        <p className="text-gray-400">Loading…</p>
+        <div className="flex justify-center py-8"><Spinner /></div>
       ) : historyRows.length > 0 ? (
         <div className="space-y-2">
           {/* Status filter */}
@@ -552,12 +562,12 @@ export function MyPicks() {
                       ? (tournament as { effective_multiplier: number }).effective_multiplier
                       : 1;
                     const displayPoints = pick.points_earned;
-                    const golferStatus = pick.golfer_status; // "CUT", "WD", "DQ", or null
+                    const golferStatus = pick.golfer_status; // "CUT", "WD", "MDF", "DQ", or null
                     const showBreakdown = multiplier > 1 && pick.earnings_usd !== null && pick.earnings_usd > 0;
-                    const statusLabel = golferStatus === "CUT" || golferStatus === "MDF" ? "CUT"
+                    const statusLabel = golferStatus === "CUT" ? "CUT"
                       : golferStatus === "WD" ? "WD"
                       : golferStatus === "DQ" ? "DQ"
-                      : null;
+                      : null; // MDF golfers earned prize money — display earnings, no status badge
                     return (
                       <>
                         <div className="text-right space-y-0.5">

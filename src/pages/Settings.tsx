@@ -11,6 +11,7 @@ import { usersApi, type League } from "../api/endpoints";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../store/authStore";
 import { useMyLeagues, useLeaveLeague, useLeagueMembers } from "../hooks/useLeague";
+import { Spinner } from "../components/Spinner";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -265,7 +266,7 @@ export function Settings() {
         </div>
 
         {leaguesLoading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <div className="flex justify-center py-4"><Spinner /></div>
         ) : !leagues?.length ? (
           <p className="text-sm text-gray-500">You are not a member of any leagues.</p>
         ) : (

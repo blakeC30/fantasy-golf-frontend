@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { authApi } from "../api/endpoints";
 import { FlagIcon } from "../components/FlagIcon";
+import { RESET_TOKEN_EXPIRE_HOURS } from "../utils";
 
 export function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -16,8 +17,13 @@ export function ForgotPassword() {
     try {
       await authApi.forgotPassword(email);
       setSubmitted(true);
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 429) {
+        setError("Too many requests. Please wait an hour before trying again.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -66,7 +72,7 @@ export function ForgotPassword() {
               </svg>
               <span>
                 If an account with <strong>{email}</strong> exists, we sent a reset link. Check your
-                inbox — it may take a minute or two to arrive.
+                inbox — it may take a minute or two to arrive. The link expires after {RESET_TOKEN_EXPIRE_HOURS} hour{RESET_TOKEN_EXPIRE_HOURS !== 1 ? "s" : ""}.
               </span>
             </div>
             <Link

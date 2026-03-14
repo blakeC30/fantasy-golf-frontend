@@ -18,6 +18,7 @@ import { useState, useRef, useLayoutEffect } from "react";
 import { Link, useParams, useLocation } from "react-router-dom";
 import { useMyPicks, useTournamentLeaderboard, useTournamentSyncStatus, useGolferScorecard } from "../hooks/usePick";
 import { GolferAvatar } from "../components/GolferAvatar";
+import { Spinner } from "../components/Spinner";
 import { fmtTournamentName } from "../utils";
 import type { LeaderboardEntry, HoleResult } from "../api/endpoints";
 
@@ -212,7 +213,7 @@ function ScorecardPanel({
           </div>
 
           {isLoading ? (
-            <p className="text-sm text-gray-400 py-2">Loading scorecard…</p>
+            <div className="py-2"><Spinner className="w-4 h-4 text-gray-300" /></div>
           ) : !scorecard || scorecard.holes.length === 0 ? (
             <p className="text-sm text-gray-400 py-2">
               {isPlayoff
@@ -357,7 +358,7 @@ export function TournamentDetail() {
   const location = useLocation();
   const [expandedGolferId, setExpandedGolferId] = useState<string | null>(null);
 
-  const { data: leaderboard, isLoading, error } = useTournamentLeaderboard(tournamentId);
+  const { data: leaderboard, isLoading, error, refetch } = useTournamentLeaderboard(tournamentId);
   // Polls sync-status every 30 s and auto-invalidates the leaderboard query when
   // last_synced_at changes, ensuring the table only refreshes after a full sync.
   useTournamentSyncStatus(tournamentId);
@@ -372,8 +373,8 @@ export function TournamentDetail() {
 
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <p className="text-gray-400">Loading leaderboard…</p>
+      <div className="max-w-4xl mx-auto flex justify-center py-10">
+        <Spinner />
       </div>
     );
   }
@@ -388,6 +389,14 @@ export function TournamentDetail() {
           Back to Picks
         </Link>
         <p className="text-gray-500">Leaderboard not available for this tournament.</p>
+        {error && (
+          <button
+            onClick={() => refetch()}
+            className="text-sm font-medium text-green-700 hover:text-green-900 underline"
+          >
+            Try again
+          </button>
+        )}
       </div>
     );
   }
@@ -422,22 +431,26 @@ export function TournamentDetail() {
     }
 
     // For live tournaments, sort by:
-    // 1. WD/DQ always last
-    // 2. Score ascending (nulls last)
+    // 1. Active players first, then CUT/MDF, then WD/DQ (mirrors backend tier logic)
+    // 2. Score ascending within each tier (nulls last)
     // 3. Thru descending within the current round (more holes played ranks higher)
     // 4. Name ascending (alphabetical tiebreaker)
     if (!isCompleted) {
-      // Only WD/DQ are forced to the absolute bottom.
-      // CUT/MDF golfers sort normally by score — the cut line separator (showCutLine) handles their visual grouping.
-      const isOut = (e: typeof entries[0]) =>
-        e.status === "WD" || e.status === "DQ";
+      // Three-tier sort matching the backend: active → CUT/MDF → WD/DQ.
+      // This prevents CUT golfers from sorting by score among active players,
+      // which would interleave them and produce multiple cut-line dividers.
+      const sortTier = (e: typeof entries[0]): number => {
+        if (e.status === "WD" || e.status === "DQ") return 2;
+        if (e.status === "CUT" || e.status === "MDF") return 1;
+        return 0;
+      };
       const getThru = (e: typeof entries[0]): number => {
         const rd = e.rounds.find((x) => x.round_number === currentRoundNumber);
         return rd?.thru ?? -1;
       };
       entries = [...entries].sort((a, b) => {
-        const aOut = isOut(a), bOut = isOut(b);
-        if (aOut !== bOut) return aOut ? 1 : -1;
+        const tierDiff = sortTier(a) - sortTier(b);
+        if (tierDiff !== 0) return tierDiff;
         if (a.total_score_to_par !== b.total_score_to_par) {
           if (a.total_score_to_par === null) return 1;
           if (b.total_score_to_par === null) return -1;

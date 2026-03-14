@@ -13,6 +13,7 @@ import { useLeagueTournaments } from "../hooks/useLeague";
 import { useMyPicks, useSubmitPick, useTournamentField, useChangePick, useAllGolfers } from "../hooks/usePick";
 import { useMyPlayoffPod, useMyPreferences } from "../hooks/usePlayoff";
 import { fmtTournamentName } from "../utils";
+import { Spinner } from "../components/Spinner";
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00");
@@ -388,7 +389,7 @@ export function MakePick() {
   if (field === undefined || (fieldNotReleased && allGolfers === undefined)) {
     return (
       <div className="max-w-lg mx-auto">
-        <p className="text-gray-400">Loading tournament field…</p>
+        <div className="flex justify-center py-8"><Spinner /></div>
       </div>
     );
   }

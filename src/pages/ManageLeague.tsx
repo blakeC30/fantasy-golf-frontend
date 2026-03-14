@@ -32,6 +32,7 @@ import {
 } from "../hooks/usePlayoff";
 import { fmtTournamentName, isoWeekKey } from "../utils";
 import { useAuthStore } from "../store/authStore";
+import { Spinner } from "../components/Spinner";
 
 // ---------------------------------------------------------------------------
 // Custom dropdown — matches the Leaderboard tournament picker style
@@ -60,6 +61,7 @@ function DropdownSelect({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropDir = useDropdownDirection(ref, open);
 
@@ -84,8 +86,19 @@ function DropdownSelect({
     : options;
 
   return (
-    <div ref={ref} className="relative">
+    <div
+      ref={ref}
+      className="relative"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          setOpen(false);
+          setSearch("");
+          triggerRef.current?.focus();
+        }
+      }}
+    >
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => { if (!disabled) { setOpen((o) => !o); setSearch(""); } }}
         className={`w-full flex items-center gap-2 text-sm border rounded-lg px-3 py-1.5 bg-white text-left transition-colors focus:outline-none focus:ring-2 focus:ring-green-700 ${
@@ -859,7 +872,7 @@ export function ManageLeague() {
           )}
         </div>
         {isLoading ? (
-          <p className="text-gray-400 text-sm">Loading…</p>
+          <div className="flex justify-center py-8"><Spinner /></div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-100">
             <table className="min-w-full text-sm">
@@ -968,7 +981,7 @@ export function ManageLeague() {
           )}
 
           {!allTournaments ? (
-            <p className="text-gray-400 text-sm">Loading tournaments…</p>
+            <div className="flex justify-center py-4"><Spinner /></div>
           ) : (
             <div className="space-y-6">
               {Object.entries(byMonth ?? {})

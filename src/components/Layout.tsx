@@ -11,6 +11,7 @@ import { Link, Navigate, Outlet, useLocation, useParams } from "react-router-dom
 import { useAuth } from "../hooks/useAuth";
 import { useLeagueMembers } from "../hooks/useLeague";
 import { FlagIcon } from "./FlagIcon";
+import { Spinner } from "./Spinner";
 
 export function Layout() {
   const { token, user, bootstrapping, logout } = useAuth();
@@ -63,7 +64,7 @@ export function Layout() {
   if (bootstrapping) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500 text-sm">Loading…</p>
+        <Spinner className="w-6 h-6 text-gray-300" />
       </div>
     );
   }

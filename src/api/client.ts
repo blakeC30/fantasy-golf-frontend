@@ -17,6 +17,7 @@ import { useAuthStore } from "../store/authStore";
 export const api = axios.create({
   baseURL: "/api/v1",
   withCredentials: true, // send httpOnly refresh-token cookie on every request
+  timeout: 30_000,       // 30 s — surface hung requests as errors instead of hanging forever
 });
 
 // --- Request interceptor: attach access token ---
@@ -29,18 +30,14 @@ api.interceptors.request.use((config) => {
 });
 
 // --- Response interceptor: silent token refresh on 401 ---
-let isRefreshing = false;
-let pendingQueue: Array<{
-  resolve: (token: string) => void;
-  reject: (err: unknown) => void;
-}> = [];
-
-function drainQueue(token: string | null, err: unknown) {
-  pendingQueue.forEach(({ resolve, reject }) =>
-    token ? resolve(token) : reject(err)
-  );
-  pendingQueue = [];
-}
+//
+// refreshPromise acts as a shared lock. All concurrent 401s await the same
+// promise rather than racing to call /auth/refresh. This is safe across
+// multiple in-flight requests within one tab (cross-tab isolation is handled
+// by the backend: the refresh token cookie is httpOnly and single-use, so
+// whichever tab wins the race gets a new token and the other sees a 401 on
+// the refresh call itself, which triggers clearAuth + redirect).
+let refreshPromise: Promise<string> | null = null;
 
 api.interceptors.response.use(
   (response) => response,
@@ -53,34 +50,26 @@ api.interceptors.response.use(
     }
     original._retried = true;
 
-    if (isRefreshing) {
-      // Another request is already refreshing — queue this one.
-      return new Promise((resolve, reject) => {
-        pendingQueue.push({
-          resolve: (token) => {
-            original.headers.Authorization = `Bearer ${token}`;
-            resolve(api(original));
-          },
-          reject,
+    // If a refresh is already in flight, piggyback on it instead of starting
+    // a second one. All callers await the same promise and get the same token.
+    if (!refreshPromise) {
+      refreshPromise = axios
+        .post("/api/v1/auth/refresh", {}, { withCredentials: true })
+        .then(({ data }) => {
+          const newToken: string = data.access_token;
+          useAuthStore.getState().setToken(newToken);
+          return newToken;
+        })
+        .finally(() => {
+          refreshPromise = null;
         });
-      });
     }
 
-    isRefreshing = true;
     try {
-      // POST /auth/refresh sends the httpOnly cookie automatically.
-      const { data } = await axios.post(
-        "/api/v1/auth/refresh",
-        {},
-        { withCredentials: true }
-      );
-      const newToken: string = data.access_token;
-      useAuthStore.getState().setToken(newToken);
-      drainQueue(newToken, null);
+      const newToken = await refreshPromise;
       original.headers.Authorization = `Bearer ${newToken}`;
       return api(original);
     } catch (refreshErr) {
-      drainQueue(null, refreshErr);
       useAuthStore.getState().clearAuth();
       // Only redirect if we're not already on a public page. Redirecting to
       // /login from /login causes a full browser reload and an infinite loop.
@@ -92,8 +81,6 @@ api.interceptors.response.use(
         window.location.href = "/login";
       }
       return Promise.reject(refreshErr);
-    } finally {
-      isRefreshing = false;
     }
   }
 );

@@ -13,6 +13,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "../store/authStore";
 import { useBracket } from "../hooks/usePlayoff";
+import { Spinner } from "../components/Spinner";
 import { useStandings } from "../hooks/usePick";
 import { useLeagueTournaments } from "../hooks/useLeague";
 import { FlagIcon } from "../components/FlagIcon";
@@ -258,7 +259,7 @@ function PodModal({
               <span className="text-white font-bold text-sm flex-shrink-0">Pod {selected.position}</span>
               {selected.tournamentName && <span className="text-gray-200 text-xs truncate">{selected.tournamentName}</span>}
             </div>
-            <button onClick={onClose} className="text-white/60 hover:text-white transition-colors flex-shrink-0">
+            <button onClick={onClose} aria-label="Close" className="text-white/60 hover:text-white transition-colors flex-shrink-0">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
             </button>
           </div>
@@ -283,7 +284,7 @@ function PodModal({
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white italic">Projected</span>
-              <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
+              <button onClick={onClose} aria-label="Close" className="text-white/60 hover:text-white transition-colors">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -377,7 +378,7 @@ function PodModal({
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <StatusPill status={pod.status} />
-            <button onClick={onClose} className="text-white/60 hover:text-white transition-colors ml-1">
+            <button onClick={onClose} aria-label="Close" className="text-white/60 hover:text-white transition-colors ml-1">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
@@ -649,7 +650,7 @@ export function PlayoffBracket() {
   if (bracketLoading || standingsLoading) {
     return (
       <div className="flex items-center justify-center h-48">
-        <p className="text-sm text-gray-400">Loading bracket…</p>
+        <Spinner />
       </div>
     );
   }
@@ -740,8 +741,13 @@ export function PlayoffBracket() {
           <strong>Projected bracket</strong> based on current standings — seedings will be confirmed when the playoff begins.
         </div>
 
-        <div className="overflow-x-auto pb-4">
-          <BracketGrid rounds={rounds} numPodsRound1={numPodsRound1} numRounds={numRounds} faint={true} />
+        <div className="relative">
+          <div className="overflow-x-auto pb-4">
+            <BracketGrid rounds={rounds} numPodsRound1={numPodsRound1} numRounds={numRounds} faint={true} />
+          </div>
+          {numRounds > 1 && (
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-gray-50 to-transparent sm:hidden" />
+          )}
         </div>
 
         {selectedPod && (
@@ -835,8 +841,13 @@ export function PlayoffBracket() {
         </div>
       )}
 
-      <div className="overflow-x-auto pb-4">
-        <BracketGrid rounds={rounds} numPodsRound1={liveRound1Pods} numRounds={totalRounds} faint={false} />
+      <div className="relative">
+        <div className="overflow-x-auto pb-4">
+          <BracketGrid rounds={rounds} numPodsRound1={liveRound1Pods} numRounds={totalRounds} faint={false} />
+        </div>
+        {totalRounds > 1 && (
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-gray-50 to-transparent sm:hidden" />
+        )}
       </div>
 
       {selectedPod && (

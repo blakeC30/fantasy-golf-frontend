@@ -7,12 +7,13 @@
  */
 
 import { Link, useParams } from "react-router-dom";
-import { useLeague, useLeagueTournaments } from "../hooks/useLeague";
+import { useLeague, useLeagueTournaments, useLeagueMembers } from "../hooks/useLeague";
 import { fmtTournamentName } from "../utils";
 import { useMyPicks, useStandings } from "../hooks/usePick";
 import { useAuthStore } from "../store/authStore";
 import { GolferAvatar } from "../components/GolferAvatar";
 import { usePlayoffConfig, useMyPlayoffPod, useMyPlayoffPicks } from "../hooks/usePlayoff";
+import { Spinner } from "../components/Spinner";
 import type { StandingsRow } from "../api/endpoints";
 
 // ---------------------------------------------------------------------------
@@ -95,6 +96,8 @@ export function Dashboard() {
   const { data: myPod } = useMyPlayoffPod(leagueId!);
   const { data: myPlayoffPicks } = useMyPlayoffPicks(leagueId!);
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const { data: members } = useLeagueMembers(leagueId!);
+  const isManager = members?.some((m) => m.user_id === currentUserId && m.role === "manager") ?? false;
   const hasPlayoff = playoffConfig && playoffConfig.playoff_size > 0;
 
   // The "active" tournament is any in_progress one, or the nearest upcoming scheduled
@@ -253,13 +256,13 @@ export function Dashboard() {
                       : [];
                     return (
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                        <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                           </svg>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-400 font-medium">Playoff picks</p>
+                          <p className="text-xs text-gray-400 font-medium">Playoff picks · <span className="text-gray-400">Locked</span></p>
                           {resolvedPicks.length > 0 ? (
                             <p className="text-base font-bold text-gray-900">
                               {resolvedPicks.map((p) => p.golfer_name).join(", ")}
@@ -327,12 +330,15 @@ export function Dashboard() {
               if (active.all_r1_teed_off) {
                 return (
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center flex-shrink-0">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                       </svg>
                     </div>
-                    <p className="text-base font-semibold text-gray-400">Pick window closed</p>
+                    <div>
+                      <p className="text-base font-semibold text-amber-600">Pick window closed</p>
+                      <p className="text-xs text-amber-500">This tournament will count as a no-pick</p>
+                    </div>
                   </div>
                 );
               }
@@ -366,7 +372,9 @@ export function Dashboard() {
           </div>
           <p className="font-semibold text-gray-700">No tournaments scheduled</p>
           <p className="text-sm text-gray-400 max-w-xs mx-auto">
-            The league manager can configure the schedule in Manage League.
+            {isManager
+              ? "Head to Manage League to configure the tournament schedule."
+              : "Ask your league manager to set up the tournament schedule."}
           </p>
         </div>
       )}
@@ -442,7 +450,7 @@ export function Dashboard() {
             </div>
           );
         })() : (
-          <p className="text-gray-400 text-sm">Loading standings…</p>
+          <div className="flex justify-center py-4"><Spinner /></div>
         )}
       </div>
     </div>

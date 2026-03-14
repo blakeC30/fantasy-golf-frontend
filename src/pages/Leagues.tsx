@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { LeagueCard } from "../components/LeagueCard";
 import { useMyLeagues, useMyRequests, useCancelMyRequest } from "../hooks/useLeague";
 import { FlagIcon } from "../components/FlagIcon";
+import { Spinner } from "../components/Spinner";
 
 export function Leagues() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export function Leagues() {
 
       {/* League list */}
       {isLoading ? (
-        <p className="text-gray-400">Loading…</p>
+        <div className="flex justify-center py-10"><Spinner /></div>
       ) : leagues && leagues.length > 0 ? (
         <div className={leagues.length === 1 ? "max-w-lg mx-auto" : "grid gap-4 sm:grid-cols-2"}>
           {leagues.map((l) => (
@@ -52,7 +53,10 @@ export function Leagues() {
             <FlagIcon className="w-6 h-6" />
           </div>
           <p className="font-semibold text-gray-700">No leagues yet</p>
-          <p className="text-sm text-gray-400">Create a league below or join one with an invite link.</p>
+          <p className="text-sm text-gray-400">
+            Got an invite link from a friend? <strong className="text-gray-500">Join their league</strong> below.
+            Want to run your own? <strong className="text-gray-500">Create a league</strong> and invite others.
+          </p>
         </div>
       )}
 

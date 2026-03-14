@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { authApi, usersApi } from "../api/endpoints";
 import { useAuthStore } from "../store/authStore";
 import { FlagIcon } from "../components/FlagIcon";
+import { RESET_TOKEN_EXPIRE_HOURS } from "../utils";
 
 export function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -113,6 +114,7 @@ export function ResetPassword() {
           </Link>
           <p className="text-2xl font-bold text-gray-900 pt-1">Set new password</p>
           <p className="text-sm text-gray-500">Choose a strong password — at least 8 characters.</p>
+          <p className="text-xs text-gray-400">Reset links expire after {RESET_TOKEN_EXPIRE_HOURS} hour{RESET_TOKEN_EXPIRE_HOURS !== 1 ? "s" : ""}.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

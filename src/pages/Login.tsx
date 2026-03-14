@@ -19,8 +19,9 @@ export function Login() {
     setLoading(true);
     try {
       await login(email, password);
-    } catch {
-      setError("Invalid email or password.");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(msg ?? "Invalid email or password.");
     } finally {
       setLoading(false);
     }

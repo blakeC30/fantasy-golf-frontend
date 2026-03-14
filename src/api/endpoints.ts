@@ -6,23 +6,14 @@
  */
 
 import { api } from "./client";
+import type { User, TokenResponse } from "../types";
+
+// Re-export so existing imports from this module continue to work.
+export type { User, TokenResponse };
 
 // ---------------------------------------------------------------------------
 // Types (mirror backend schemas)
 // ---------------------------------------------------------------------------
-
-export interface User {
-  id: string;
-  email: string;
-  display_name: string;
-  is_platform_admin: boolean;
-  created_at: string;
-}
-
-export interface TokenResponse {
-  access_token: string;
-  token_type: string;
-}
 
 export interface League {
   id: string;
@@ -91,7 +82,7 @@ export interface Pick {
   is_locked: boolean; // true once the golfer's Round 1 tee time has passed
   position: number | null; // golfer's current or final position; null if not started
   is_tied: boolean; // true when multiple golfers share this position
-  golfer_status: string | null; // e.g. "CUT", "WD", "DQ"; null if active/finished normally
+  golfer_status: string | null; // e.g. "CUT", "WD", "MDF", "DQ"; null if active/finished normally
   golfer: Golfer;
   tournament: Tournament;
 }

@@ -1,4 +1,10 @@
 /**
+ * How long password-reset links are valid (hours). Must match
+ * RESET_TOKEN_EXPIRE_HOURS in the backend config (app/config.py).
+ */
+export const RESET_TOKEN_EXPIRE_HOURS = 1;
+
+/**
  * Strips sponsorship suffixes from PGA Tour event names.
  * ESPN names include " pres. by Sponsor" or " presented by Sponsor".
  * Examples:

@@ -13,13 +13,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { leaguesApi, type Tournament } from "../api/endpoints";
 import { useTournaments } from "../hooks/usePick";
 import { fmtTournamentName, isoWeekKey } from "../utils";
+import { Spinner } from "../components/Spinner";
 
 export function CreateLeague() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
   const [name, setName] = useState("");
-  const [noPick, setNoPick] = useState(-50000);
+  const [noPick, setNoPick] = useState("50000");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -95,7 +96,7 @@ export function CreateLeague() {
     setError("");
     setLoading(true);
     try {
-      const league = await leaguesApi.create(name.trim(), noPick);
+      const league = await leaguesApi.create(name.trim(), -(parseInt(noPick, 10) || 0));
       const schedule = [...selectedIds].map((id) => ({
         tournament_id: id,
         multiplier: multipliers[id] ?? null,
@@ -171,20 +172,35 @@ export function CreateLeague() {
               No-pick penalty
             </label>
             <p className="text-xs text-gray-400">
-              Points applied when a player misses a week without submitting a pick. Negative by convention.
+              Points applied when a player misses a week without submitting a pick.
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">−</span>
               <input
                 id="noPick"
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={noPick}
-                onChange={(e) => setNoPick(parseInt(e.target.value, 10) || 0)}
-                className="w-40 border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition-shadow"
+                onChange={(e) => setNoPick(e.target.value.replace(/[^0-9]/g, ""))}
+                onBlur={() => setNoPick(String(Math.min(500000, parseInt(noPick, 10) || 0)))}
+                className="w-36 border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition-shadow"
               />
-              <span className="text-sm text-gray-400">points</span>
+              <span className="text-xs text-gray-400">per missed pick · max $500,000</span>
             </div>
           </div>
         </div>
+
+        {/* Conflict banner — sticky so it stays visible while scrolling the schedule */}
+        {hasConflicts && (
+          <div className="sticky top-4 z-10 flex items-start gap-2.5 bg-amber-50 border border-amber-300 text-amber-800 text-sm px-4 py-3 rounded-xl shadow-sm">
+            <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+            <span>
+              <strong>Schedule conflict:</strong> two selected tournaments fall in the same week. Uncheck one in each conflicting week below before creating the league.
+            </span>
+          </div>
+        )}
 
         {/* Tournament schedule */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5">
@@ -204,7 +220,7 @@ export function CreateLeague() {
           </p>
 
           {!allTournaments ? (
-            <p className="text-sm text-gray-400">Loading tournaments…</p>
+            <div className="flex justify-center py-4"><Spinner /></div>
           ) : (
             <div className="space-y-6">
               {Object.entries(byMonth ?? {})
