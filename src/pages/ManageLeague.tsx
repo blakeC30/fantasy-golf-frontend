@@ -204,19 +204,19 @@ export function ManageLeague() {
   const updateLeague = useUpdateLeague(leagueId!);
   const [settingsEditing, setSettingsEditing] = useState(false);
   const [settingsName, setSettingsName] = useState("");
-  const [settingsNoPick, setSettingsNoPick] = useState(-50000);
+  const [settingsNoPick, setSettingsNoPick] = useState("50000");
 
   useEffect(() => {
     if (league) {
       setSettingsName(league.name);
-      setSettingsNoPick(league.no_pick_penalty);
+      setSettingsNoPick(String(Math.abs(league.no_pick_penalty)));
     }
   }, [league]);
 
   function handleCancelSettings() {
     if (league) {
       setSettingsName(league.name);
-      setSettingsNoPick(league.no_pick_penalty);
+      setSettingsNoPick(String(Math.abs(league.no_pick_penalty)));
     }
     setSettingsEditing(false);
   }
@@ -224,7 +224,7 @@ export function ManageLeague() {
   async function handleSaveSettings() {
     await updateLeague.mutateAsync({
       name: settingsName,
-      no_pick_penalty: settingsNoPick,
+      no_pick_penalty: -(parseInt(settingsNoPick, 10) || 0),
     });
     setSettingsEditing(false);
   }
@@ -721,18 +721,24 @@ export function ManageLeague() {
               <span className="text-sm text-gray-500 sm:w-36 sm:flex-shrink-0">No-pick penalty</span>
               {settingsEditing ? (
                 <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">−</span>
                   <input
-                    type="number"
-                    max={0}
+                    type="text"
+                    inputMode="numeric"
                     value={settingsNoPick}
-                    onChange={(e) => setSettingsNoPick(parseInt(e.target.value, 10) || 0)}
+                    onChange={(e) =>
+                      setSettingsNoPick(e.target.value.replace(/[^0-9]/g, ""))
+                    }
+                    onBlur={() =>
+                      setSettingsNoPick(String(Math.min(500000, parseInt(settingsNoPick, 10) || 0)))
+                    }
                     className="w-36 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-700"
                   />
-                  <span className="text-xs text-gray-400">penalty per missed pick</span>
+                  <span className="text-xs text-gray-400">per missed pick · max $500,000</span>
                 </div>
               ) : (
                 <span className="text-sm font-medium text-gray-900">
-                  {league?.no_pick_penalty.toLocaleString()} pts
+                  −{Math.abs(league?.no_pick_penalty ?? 0).toLocaleString()} pts
                 </span>
               )}
             </div>

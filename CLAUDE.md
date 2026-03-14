@@ -39,6 +39,7 @@ src/
 │   ├── Leaderboard.tsx     # Full standings table with tournament breakdown
 │   ├── ManageLeague.tsx    # Manager panel — invite, settings, members, schedule (single checkbox per tournament), playoff config (auto-uses last N future tournaments as playoff rounds)
 │   ├── ManagePlayoff.tsx   # Manager playoff panel — round operations (open/resolve/score/advance), override; no tournament assignment (auto-assigned at seeding)
+│   ├── LeagueRules.tsx     # Read-only rules + league config view (all members) — shows league settings + game rules; playoffs section shown only when enabled
 │   ├── PlayoffBracket.tsx  # Public bracket view — all rounds, pods, clickable pod cards
 │   ├── PlayoffDraft.tsx    # Per-pod draft — submission status, preference editor, resolved picks
 │   ├── JoinLeague.tsx      # Invite-link landing page (auth gate + confirm form)
@@ -70,6 +71,7 @@ src/
 /leagues/:leagueId/pick         → MakePick
 /leagues/:leagueId/picks        → MyPicks
 /leagues/:leagueId/leaderboard  → Leaderboard
+/leagues/:leagueId/rules        → LeagueRules (all members — read-only rules + league config)
 /leagues/:leagueId/manage       → ManageLeague (manager only — self-redirects non-managers)
 /leagues/:leagueId/manage/playoff → ManagePlayoff (manager only — playoff config + round operations)
 /leagues/:leagueId/playoff      → PlayoffBracket (all members — scrollable bracket view)
